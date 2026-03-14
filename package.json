@@ -1,6 +1,6 @@
 {
   "name": "townshipcanada",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Official TypeScript SDK for the Township Canada API — convert Canadian legal land descriptions (DLS, NTS, Geographic Townships) to GPS coordinates and back.",
   "type": "module",
   "main": "./dist/index.cjs",
