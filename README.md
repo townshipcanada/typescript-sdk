@@ -1,6 +1,11 @@
 # townshipcanada
 
+[![npm](https://img.shields.io/npm/v/townshipcanada)](https://www.npmjs.com/package/townshipcanada)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 Official TypeScript SDK for the [Township Canada API](https://townshipcanada.com/api) — convert Canadian legal land descriptions (DLS, NTS, Geographic Townships) to GPS coordinates and back.
+
+[Documentation](https://townshipcanada.com/api) · [GitHub](https://github.com/townshipcanada/typescript-sdk) · [npm](https://www.npmjs.com/package/townshipcanada)
 
 ## Install
 
