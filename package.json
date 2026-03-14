@@ -1,0 +1,68 @@
+{
+  "name": "townshipcanada",
+  "version": "1.0.4",
+  "description": "Official TypeScript SDK for the Township Canada API — convert Canadian legal land descriptions (DLS, NTS, Geographic Townships) to GPS coordinates and back.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "township",
+    "canada",
+    "gps",
+    "coordinates",
+    "legal-land-description",
+    "dls",
+    "nts",
+    "dominion-land-survey",
+    "national-topographic-system",
+    "geocoding",
+    "geospatial",
+    "alberta",
+    "saskatchewan",
+    "manitoba",
+    "british-columbia",
+    "ontario",
+    "survey",
+    "land"
+  ],
+  "author": "Maps & Apps Inc.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/townshipcanada/typescript-sdk.git"
+  },
+  "homepage": "https://townshipcanada.com/api",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "tsup": "^8.4.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
