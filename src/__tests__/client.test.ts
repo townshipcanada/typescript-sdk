@@ -15,7 +15,7 @@ import type { SearchResponse, BatchResponse, AutocompleteResponse } from '../typ
 
 const CENTROID_FEATURE = {
   type: 'Feature' as const,
-  geometry: { type: 'Point' as const, coordinates: [-114.654321, 52.123456] },
+  geometry: { type: 'Point' as const, coordinates: [-114.654321, 52.123456] as [number, number] },
   properties: {
     shape: 'centroid' as const,
     legal_location: 'NW-36-42-3-W5',
@@ -52,7 +52,7 @@ const AUTOCOMPLETE_RESPONSE: AutocompleteResponse = {
   features: [
     {
       type: 'Feature',
-      geometry: { type: 'Point', coordinates: [-114.01924, 51.077932] },
+      geometry: { type: 'Point' as const, coordinates: [-114.01924, 51.077932] as [number, number] },
       properties: {
         legal_location: 'NW-25-24-1-W5',
         search_term: 'NW-25-24',
