@@ -53,7 +53,7 @@ export class TownshipClient {
     this.apiKey = options.apiKey;
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.timeout = options.timeout ?? DEFAULT_TIMEOUT;
-    this.fetchFn = options.fetch ?? globalThis.fetch;
+    this.fetchFn = options.fetch ?? globalThis.fetch.bind(globalThis);
   }
 
   // ── Core Methods ─────────────────────────────────────────────────
@@ -299,7 +299,7 @@ export class TownshipClient {
         ...init,
         headers: {
           "X-API-Key": this.apiKey,
-          "Content-Type": "application/json",
+          ...(init?.body ? { "Content-Type": "application/json" } : {}),
           ...init?.headers
         },
         signal: controller.signal

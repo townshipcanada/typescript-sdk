@@ -8,6 +8,7 @@ export class TownshipError extends Error {
   ) {
     super(message)
     this.name = 'TownshipError'
+    Object.setPrototypeOf(this, new.target.prototype)
   }
 }
 
@@ -18,6 +19,7 @@ export class AuthenticationError extends TownshipError {
   constructor(message = 'Invalid or missing API key') {
     super(message, 401)
     this.name = 'AuthenticationError'
+    Object.setPrototypeOf(this, new.target.prototype)
   }
 }
 
@@ -28,6 +30,7 @@ export class NotFoundError extends TownshipError {
   constructor(message = 'Location not found') {
     super(message, 404)
     this.name = 'NotFoundError'
+    Object.setPrototypeOf(this, new.target.prototype)
   }
 }
 
@@ -38,6 +41,7 @@ export class RateLimitError extends TownshipError {
   constructor(message = 'Rate limit exceeded. Please slow down your requests.') {
     super(message, 429)
     this.name = 'RateLimitError'
+    Object.setPrototypeOf(this, new.target.prototype)
   }
 }
 
@@ -48,6 +52,7 @@ export class ValidationError extends TownshipError {
   constructor(message = 'Invalid request') {
     super(message, 400)
     this.name = 'ValidationError'
+    Object.setPrototypeOf(this, new.target.prototype)
   }
 }
 
@@ -58,5 +63,6 @@ export class PayloadTooLargeError extends TownshipError {
   constructor(message = 'Batch payload exceeds the maximum of 100 records per request') {
     super(message, 413)
     this.name = 'PayloadTooLargeError'
+    Object.setPrototypeOf(this, new.target.prototype)
   }
 }

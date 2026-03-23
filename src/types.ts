@@ -51,7 +51,7 @@ export type SurveySystem = 'DLS' | 'NTS' | 'GTS'
 export type DLSUnit = 'Quarter Section' | 'LSD' | 'Section' | 'Township'
 export type NTSUnit = 'Quarter Unit' | 'Block' | 'Map Sheet' | 'Map Area'
 export type GTSUnit = 'Lot' | 'Concession'
-export type Unit = DLSUnit | NTSUnit | GTSUnit | string
+export type Unit = DLSUnit | NTSUnit | GTSUnit
 
 // ── Feature Properties ───────────────────────────────────────────────
 

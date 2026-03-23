@@ -40,7 +40,7 @@ console.log(result.province); // "Alberta"
 3. Pass it to the client constructor
 
 ```typescript
-const client = new TownshipClient({ apiKey: process.env.TOWNSHIP_API_KEY! });
+const client = new TownshipClient({ apiKey: process.env.TOWNSHIP_CANADA_API_KEY! });
 ```
 
 ## API Reference
