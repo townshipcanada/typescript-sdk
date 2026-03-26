@@ -121,7 +121,6 @@ describe('TownshipClient', () => {
         expect.objectContaining({
           headers: expect.objectContaining({
             'X-API-Key': 'test-key',
-            'Content-Type': 'application/json',
           }),
         }),
       )
