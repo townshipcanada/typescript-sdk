@@ -256,6 +256,172 @@ console.log(featureCollection.features); // LocationFeature[]
 
 ---
 
+## Ag API (Agriculture Reports)
+
+Agriculture parcel reports for DLS quarter sections: productivity (LSRS/CLI), crop rotation, soils, land use, drought, wetlands, and parcel context. Inputs may be a quarter section or an LSD (resolved to its containing quarter section). Coverage: AB, SK, MB — BC (NTS) locations throw `ValidationError`.
+
+### `client.agReport(legalLocation, options?)`
+
+Get the full agriculture report for one quarter section or LSD.
+
+```typescript
+const report = await client.agReport("NW-36-42-3-W5");
+
+console.log(report.area_ha); // 64.75
+console.log(report.productivity?.lsrs_score); // 72
+console.log(report.soil?.order); // "Chernozemic"
+console.log(report.cropping?.rotation_pattern); // "Canola-Wheat"
+
+// Include the quarter-section boundary as GeoJSON
+const withGeometry = await client.agReport("NW-36-42-3-W5", { geometry: true });
+console.log(withGeometry.geometry?.type); // "Polygon"
+
+// LSD inputs resolve to their containing quarter section
+const fromLsd = await client.agReport("10-36-42-3-W5");
+console.log(fromLsd.qs_legal_location); // "NE-36-42-3-W5"
+```
+
+**Options:**
+
+| Option     | Type      | Default | Description                          |
+| ---------- | --------- | ------- | ------------------------------------ |
+| `geometry` | `boolean` | `false` | Include the parcel boundary GeoJSON  |
+
+**Returns:** `AgReport` — sections (`productivity`, `cropping`, `soil`, `land_use`, `drought`, `wetlands`, `parcel_context`) degrade independently to `null` when a data layer is unavailable. Saskatchewan adds `sk` extras (crown land, soils, pastures) and Manitoba adds `mb` extras (soil survey components).
+
+---
+
+### `client.agBatch(locations)`
+
+Get agriculture reports for multiple locations. Automatically chunks large batches into requests of 25 (API max). Results come back in input order with a per-item status envelope.
+
+```typescript
+const items = await client.agBatch(["NW-36-42-3-W5", "10-2-24-28-W4", "not a location"]);
+
+for (const item of items) {
+  if (item.status === "ok") {
+    console.log(item.legal_location, item.data?.area_ha);
+  } else if (item.status === "not_found") {
+    console.log(item.legal_location, "no agriculture coverage");
+  } else {
+    console.log(item.legal_location, item.error); // "Invalid legal location format"
+  }
+}
+```
+
+**Returns:** `AgBatchItem[]` — `{ legal_location, status: "ok" | "not_found" | "error", data, error? }`
+
+---
+
+### `client.agAutocomplete(query, options?)`
+
+Suggest quarter sections with agriculture coverage as you type. Every suggestion is guaranteed to return a report. Same options as `autocomplete`.
+
+```typescript
+const suggestions = await client.agAutocomplete("NW-36-42", { limit: 5 });
+console.log(suggestions[0].legalLocation); // "NW-36-42-3-W5"
+```
+
+**Returns:** `AutocompleteSuggestion[]`
+
+---
+
+## Energy API (Energy Reports)
+
+Per-parcel energy reports for Legal Subdivisions (LSDs): wells, pipelines, facilities, trailing-12-month production, Crown tenure, and alternative energy. Coverage: AB, SK, MB (wells + tenure only) — BC (NTS) locations throw `ValidationError`.
+
+### `client.energyReport(legalLocation, options?)`
+
+Get the full energy report for one LSD.
+
+```typescript
+const report = await client.energyReport("10-36-42-3-W5");
+
+console.log(report.activity.total_wells); // 4
+console.log(report.activity.active_wells); // 2
+console.log(report.activity.dominant_operator); // "EXAMPLE ENERGY LTD"
+console.log(report.production?.oil_m3_12mo); // 1250.5
+console.log(report.tenure.length); // 1
+console.log(report.wells[0]?.uwi); // "100103604203W500"
+
+// Include the LSD boundary as GeoJSON
+const withGeometry = await client.energyReport("10-36-42-3-W5", { geometry: true });
+```
+
+**Options:**
+
+| Option     | Type      | Default | Description                         |
+| ---------- | --------- | ------- | ----------------------------------- |
+| `geometry` | `boolean` | `false` | Include the parcel boundary GeoJSON |
+
+**Returns:** `EnergyReport` — a `null` section (`production`, `alternative_energy`) or empty array (`wells`, `pipelines`, `facilities`, `tenure`) means no data at that location or that one source degraded; the rest of the report is still trustworthy.
+
+---
+
+### `client.energyBatch(locations)`
+
+Get energy reports for multiple LSDs. Automatically chunks large batches into requests of 25 (API max). Results come back in input order with a per-item status envelope.
+
+```typescript
+const items = await client.energyBatch(["10-36-42-3-W5", "4-12-50-24-W4"]);
+
+for (const item of items) {
+  if (item.status === "ok") {
+    console.log(item.legal_location, item.data?.activity.total_wells);
+  }
+}
+```
+
+**Returns:** `EnergyBatchItem[]` — `{ legal_location, status: "ok" | "not_found" | "error", data, error? }`
+
+---
+
+### `client.energyAutocomplete(query, options?)`
+
+Suggest LSDs with energy data for typeahead inputs. Every suggestion is guaranteed to return a report. Same options as `autocomplete`.
+
+```typescript
+const suggestions = await client.energyAutocomplete("10-36-42", { limit: 5 });
+console.log(suggestions[0].legalLocation); // "10-36-42-3-W5"
+console.log(suggestions[0].unit); // "LSD"
+```
+
+**Returns:** `AutocompleteSuggestion[]`
+
+---
+
+### `client.energyOperatorAutocomplete(query, options?)`
+
+Search AER licensees by name or BA code for operator search inputs. Prefix matches rank first, then by active well count.
+
+```typescript
+const operators = await client.energyOperatorAutocomplete("cenovus");
+
+for (const op of operators) {
+  console.log(op.ba_code, op.name, op.active_wells);
+}
+```
+
+**Options:**
+
+| Option  | Type     | Default | Description              |
+| ------- | -------- | ------- | ------------------------ |
+| `limit` | `number` | `10`    | Number of results (1-20) |
+
+**Returns:** `EnergyOperator[]`
+
+```typescript
+{
+  ba_code: string | null; // "0AB1"
+  name: string; // "EXAMPLE ENERGY LTD"
+  active_wells: number | null; // 1250
+  abandoned_wells: number | null; // 320
+  orphan_wells: number | null; // 0
+}
+```
+
+---
+
 ## Error Handling
 
 The SDK throws typed errors that you can catch and handle:
