@@ -14,9 +14,8 @@ import type {
   BatchResponse,
   AutocompleteResponse,
   AgReport,
-  AgBatchItem,
+  ReportBatchResponse,
   EnergyReport,
-  EnergyBatchItem,
   EnergyOperatorsResponse,
 } from '../types.js'
 
@@ -73,29 +72,31 @@ const AUTOCOMPLETE_RESPONSE: AutocompleteResponse = {
 }
 
 const AG_REPORT: AgReport = {
-  legal_location: 'NW-36-42-3-W5',
-  province: 'ab',
-  area_ha: 64.75,
+  legal_location: '10-36-42-3-W5',
+  resolved_legal_location: 'NE-36-42-3-W5',
+  grain: 'lsd',
+  province: 'AB',
+  parcel: {
+    area_ha: 64.75,
+    centroid: { lat: 52.61, lng: -113.82 },
+    geometry: null,
+  },
   productivity: {
-    lsrs_score: 72,
-    lsrs_class: '2',
-    lsrs_limiter: 'M - Moisture',
-    cli_class: '2',
-    cli_score: 80,
-    cli_limiter: 'M',
+    lsrs: { score: 72, class: '2', limiter: 'M - Moisture' },
+    cli: { score: 80, class: '2', limiter: 'M' },
   },
   cropping: {
-    dominant_crop: '146',
-    dominant_crop_name: 'Canola',
-    dominant_category: 'Oilseed',
-    rotation_pattern: 'Canola-Wheat',
-    diversity_index: 0.64,
+    dominant: { code: '146', name: 'Canola', category: 'Oilseed' },
+    rotation: 'Canola-Wheat',
+    diversity_index: 0.6412,
     years_covered: 10,
   },
   soil: {
-    order: 'Chernozemic',
-    group: 'Black Chernozem',
-    subgroup: 'Orthic Black Chernozem',
+    classification: {
+      order: 'Chernozemic',
+      great_group: 'Black Chernozem',
+      subgroup_code: 'Orthic Black Chernozem',
+    },
     drainage_class: 'Well drained',
     slope_class: '2-5%',
     parent_material: 'Glacial till',
@@ -103,68 +104,143 @@ const AG_REPORT: AgReport = {
     source: 'AGRASID',
   },
   land_use: {
-    class: '51',
-    class_label: 'Annual cropland',
-    ipcc_class: 'Cropland',
-    breakdown: [{ class: '51', label: 'Annual cropland', pct: 88.2 }],
+    dominant: { code: '51', label: 'Annual cropland', ipcc_class: 'Cropland' },
+    breakdown: [{ code: '51', label: 'Annual cropland', ipcc_class: 'Cropland', pct: 88.2 }],
   },
-  drought: null,
+  drought: { class: 'D1', severity_label: 'Moderate Drought', as_of: '2026-07' },
   wetlands: null,
+  hydrology: {
+    watercourse: { name: 'Blindman River', distance_m: 240, is_on_parcel: false },
+    water_body: { name: null, distance_m: null, is_on_parcel: false, on_parcel_pct: null },
+    search_radius_m: 500,
+  },
   parcel_context: {
-    municipality: 'Red Deer County',
-    municipality_type: 'Municipal District',
+    municipality: { name: 'Red Deer County', type: 'Municipal District' },
     nearest_railway: null,
     nearest_road: null,
     nearest_park: null,
   },
+  provincial_detail: null,
+  units: { area: 'ha', distance: 'm' },
+  meta: { unavailable: [], sources: {} },
 }
 
 const ENERGY_REPORT: EnergyReport = {
   legal_location: '10-36-42-3-W5',
-  province: 'ab',
-  activity: {
-    total_wells: 4,
-    active_wells: 2,
-    suspended_wells: 1,
-    abandoned_wells: 1,
-    orphan_wells: 0,
-    recl_certified_wells: 0,
-    petrinex: { total: 4, oil: 2, gas: 2 },
-    pipeline_segments: 3,
-    pipeline_length_km: 1.8,
-    facility_count: 1,
-    facility_categories: ['Battery'],
-    dominant_operator: 'EXAMPLE ENERGY LTD',
+  province: 'AB',
+  parcel: { area_ha: 16.19, centroid: { lat: 52.51, lng: -113.71 }, geometry: null },
+  summary: {
+    wells: {
+      total: 4,
+      active: 2,
+      suspended: 1,
+      abandoned: 1,
+      orphan: 0,
+      reclamation_certified: 0,
+      primary_source: 'regulator',
+      by_source: {
+        regulator: { total: 4, active: 2, suspended: 1, abandoned: 1, orphan: 0, reclamation_certified: 0 },
+        petrinex: { total: 4, active: 2, suspended: 1, abandoned: 1, oil: 2, gas: 2, water: 0 },
+      },
+    },
+    pipelines: { segment_count: 3, length_m_on_parcel: 1800 },
+    facilities: { count: 1, categories: ['Battery'] },
+    operators: {
+      dominant: {
+        name: 'EXAMPLE ENERGY LTD',
+        ba_code: null,
+        slug: 'example-energy-ltd',
+        well_count: 4,
+        well_share_pct: 100,
+        share_basis: 'regulator_total_wells',
+      },
+    },
+    last_activity_date: '2024-11-03',
   },
   production: {
-    oil_m3_12mo: 1250.5,
-    gas_e3m3_12mo: 890.2,
-    water_m3_12mo: 3100.0,
-    condensate_m3_12mo: 0,
+    window_months: 12,
+    last_producing_month: '2025-06',
+    volumes: { oil_m3: 1250.5, gas_e3m3: 890.2, condensate_m3: 0, water_m3: 3100.0 },
     has_oil: true,
     has_gas: true,
+    has_condensate: false,
     has_water: true,
-    dominant_product: 'OIL',
-    producing_wells: 2,
-    last_producing_month: '2025-06',
+    dominant_product: 'oil',
+    producing_well_count: 2,
   },
-  tenure: [],
-  wells: [],
-  pipelines: [],
-  facilities: [],
+  tenure: {
+    total: 1,
+    returned: 1,
+    truncated: false,
+    more: '/energy/tenure?legal_location=10-36-42-3-W5',
+    rows: [
+      {
+        id: '0512345',
+        href: '/energy/dispositions/0512345',
+        tenure_kind: 'png',
+        province: 'AB',
+        disposition_number: '0512345',
+        mineral_category: null,
+        disposition_type: 'licence',
+        disposition_type_raw: 'NAT GAS LIC',
+        target_substance: null,
+        coal_category: null,
+        holder: { name: 'EXAMPLE ENERGY LTD', ba_code: null, slug: 'example-energy-ltd' },
+        status: 'active',
+        expiry_date: '2027-03-01',
+        days_to_expiry: 192,
+        expiry_state: 'expiring_soon',
+        area_ha: 256,
+        lsd_coverage_pct: 100,
+        is_transfer_pending: false,
+        overlap_point: { lat: 52.5, lng: -113.7 },
+      },
+    ],
+  },
+  wells: {
+    total: 1,
+    returned: 1,
+    truncated: false,
+    more: '/energy/wells?legal_location=10-36-42-3-W5',
+    rows: [
+      {
+        id: '100103604203W500',
+        uwi: '100103604203W500',
+        well_name: 'EXAMPLE 10-36',
+        licence_number: '0400001',
+        status: 'active',
+        licence_status_raw: 'Issued',
+        operator: { name: null, ba_code: '0AB1', slug: null },
+        fluid: 'crude_oil',
+        mode: 'pumping',
+        type: 'development',
+        total_depth_m: 1650,
+        is_orphan: false,
+        is_abandoned: false,
+        is_suspended: false,
+        location: { lat: 52.51, lng: -113.71 },
+      },
+    ],
+  },
+  pipelines: { total: 0, returned: 0, truncated: false, more: null, rows: [] },
+  facilities: { total: 0, returned: 0, truncated: false, more: null, rows: [] },
   alternative_energy: null,
+  units: { length: 'm', area: 'ha', depth: 'm', pressure: 'kPa', oil: 'm3', gas: 'e3m3' },
+  meta: { unavailable: [], sources: {} },
 }
 
 const OPERATORS_RESPONSE: EnergyOperatorsResponse = {
-  operators: [
+  rows: [
     {
-      ba_code: '0AB1',
       name: 'EXAMPLE ENERGY LTD',
+      ba_code: '0AB1',
+      slug: 'example-energy-ltd',
       active_wells: 1250,
       abandoned_wells: 320,
       orphan_wells: 0,
     },
   ],
+  meta: { q: 'example', limit: 10 },
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -469,10 +545,10 @@ describe('TownshipClient', () => {
       const fetchFn = mockFetch(AG_REPORT)
       const client = createClient(fetchFn)
 
-      const report = await client.agReport('NW-36-42-3-W5')
+      const report = await client.agReport('10-36-42-3-W5')
 
       expect(fetchFn).toHaveBeenCalledWith(
-        expect.stringContaining('/ag/report?legal_location=NW-36-42-3-W5'),
+        expect.stringContaining('/ag/report?legal_location=10-36-42-3-W5'),
         expect.objectContaining({
           headers: expect.objectContaining({
             'X-API-Key': 'test-key',
@@ -480,56 +556,84 @@ describe('TownshipClient', () => {
         }),
       )
 
-      expect(report.legal_location).toBe('NW-36-42-3-W5')
-      expect(report.province).toBe('ab')
-      expect(report.area_ha).toBe(64.75)
-      expect(report.productivity?.lsrs_score).toBe(72)
-      expect(report.soil?.order).toBe('Chernozemic')
-      expect(report.drought).toBeNull()
+      expect(report.legal_location).toBe('10-36-42-3-W5')
+      expect(report.resolved_legal_location).toBe('NE-36-42-3-W5')
+      expect(report.grain).toBe('lsd')
+      expect(report.province).toBe('AB')
+      expect(report.parcel.area_ha).toBe(64.75)
+      expect(report.productivity?.lsrs?.score).toBe(72)
+      expect(report.soil?.classification?.order).toBe('Chernozemic')
+      expect(report.drought?.class).toBe('D1')
+      expect(report.drought?.as_of).toBe('2026-07')
+      expect(report.hydrology?.watercourse?.distance_m).toBe(240)
+      expect(report.provincial_detail).toBeNull()
     })
 
-    it('passes geometry flag', async () => {
+    it('passes include sections as a comma-separated list', async () => {
       const fetchFn = mockFetch(AG_REPORT)
       const client = createClient(fetchFn)
 
-      await client.agReport('NW-36-42-3-W5', { geometry: true })
+      await client.agReport('NW-36-42-3-W5', { include: ['soil', 'drought', 'geometry'] })
 
       const url = fetchFn.mock.calls[0][0] as string
-      expect(url).toContain('geometry=true')
+      expect(url).toContain('include=soil%2Cdrought%2Cgeometry')
     })
 
-    it('omits geometry flag by default', async () => {
+    it('omits include by default', async () => {
       const fetchFn = mockFetch(AG_REPORT)
       const client = createClient(fetchFn)
 
       await client.agReport('NW-36-42-3-W5')
 
       const url = fetchFn.mock.calls[0][0] as string
+      expect(url).not.toContain('include')
       expect(url).not.toContain('geometry')
     })
 
-    it('throws ValidationError for BC locations (400)', async () => {
-      const client = createClient(mockFetch({ message: 'BC locations are not yet supported' }, 400))
-      await expect(client.agReport('A-2-F/93-P-8')).rejects.toThrow(ValidationError)
+    it('throws ValidationError with code for BC locations (400)', async () => {
+      const client = createClient(
+        mockFetch(
+          { error: { code: 'bc_not_supported', message: 'BC locations are not yet supported' } },
+          400,
+        ),
+      )
+      const err = await client.agReport('A-2-F/93-P-8').catch((e) => e)
+      expect(err).toBeInstanceOf(ValidationError)
+      expect(err.code).toBe('bc_not_supported')
+      expect(err.message).toBe('BC locations are not yet supported')
     })
 
     it('throws NotFoundError when no data (404)', async () => {
-      const client = createClient(mockFetch({ message: 'No agriculture data' }, 404))
+      const client = createClient(
+        mockFetch({ error: { code: 'not_found', message: 'No agriculture data' } }, 404),
+      )
       await expect(client.agReport('NW-1-1-1-W4')).rejects.toThrow(NotFoundError)
     })
   })
 
   describe('agBatch', () => {
-    it('sends POST request and returns envelopes in order', async () => {
-      const batchResponse: AgBatchItem[] = [
-        { legal_location: 'NW-36-42-3-W5', status: 'ok', data: AG_REPORT },
-        { legal_location: 'not a location', status: 'error', error: 'Invalid legal location format', data: null },
-        { legal_location: 'NW-1-1-1-W4', status: 'not_found', data: null },
-      ]
+    it('sends POST request and returns the {results, meta} envelope', async () => {
+      const batchResponse: ReportBatchResponse<AgReport> = {
+        results: [
+          { legal_location: 'NW-36-42-3-W5', status: 'ok', error: null, data: AG_REPORT },
+          {
+            legal_location: 'not a location',
+            status: 'error',
+            error: { code: 'invalid_legal_location', message: 'Not a quarter section or LSD.' },
+            data: null,
+          },
+          { legal_location: 'NW-1-1-1-W4', status: 'not_found', error: null, data: null },
+        ],
+        meta: { total: 3, ok: 1, not_found: 1, error: 1 },
+      }
       const fetchFn = mockFetch(batchResponse)
       const client = createClient(fetchFn)
 
-      const items = await client.agBatch(['NW-36-42-3-W5', 'not a location', 'NW-1-1-1-W4'])
+      const { results, meta } = await client.agBatch([
+        'NW-36-42-3-W5',
+        'not a location',
+        'NW-1-1-1-W4',
+      ])
 
       expect(fetchFn).toHaveBeenCalledWith(
         expect.stringContaining('/ag/batch'),
@@ -539,38 +643,59 @@ describe('TownshipClient', () => {
         }),
       )
 
-      expect(items).toHaveLength(3)
-      expect(items[0].status).toBe('ok')
-      expect(items[0].data?.area_ha).toBe(64.75)
-      expect(items[1].status).toBe('error')
-      expect(items[1].error).toBe('Invalid legal location format')
-      expect(items[2].status).toBe('not_found')
-      expect(items[2].data).toBeNull()
+      expect(results).toHaveLength(3)
+      expect(results[0].status).toBe('ok')
+      expect(results[0].error).toBeNull()
+      expect(results[0].data?.parcel.area_ha).toBe(64.75)
+      expect(results[1].status).toBe('error')
+      expect(results[1].error?.code).toBe('invalid_legal_location')
+      expect(results[2].status).toBe('not_found')
+      expect(results[2].data).toBeNull()
+      expect(meta).toEqual({ total: 3, ok: 1, not_found: 1, error: 1 })
     })
 
-    it('chunks batches larger than 25', async () => {
-      const fetchFn = mockFetch([])
+    it('chunks batches larger than 25 and sums meta counters', async () => {
+      const fetchFn = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+        const body = JSON.parse(init.body as string) as string[]
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: () =>
+            Promise.resolve({
+              results: body.map((legal_location) => ({
+                legal_location,
+                status: 'not_found',
+                error: null,
+                data: null,
+              })),
+              meta: { total: body.length, ok: 0, not_found: body.length, error: 0 },
+            }),
+        })
+      })
       const client = createClient(fetchFn)
 
       const locations = Array.from({ length: 60 }, (_, i) => `NW-${i}-42-3-W5`)
-      await client.agBatch(locations)
+      const { results, meta } = await client.agBatch(locations)
 
       // 60 items with chunk size 25 -> 3 requests (25 + 25 + 10)
       expect(fetchFn).toHaveBeenCalledTimes(3)
       const firstBody = JSON.parse(fetchFn.mock.calls[0][1].body as string)
       expect(firstBody).toHaveLength(25)
+      expect(results).toHaveLength(60)
+      expect(meta).toEqual({ total: 60, ok: 0, not_found: 60, error: 0 })
     })
   })
 
   describe('agAutocomplete', () => {
-    it('sends correct request and parses suggestions', async () => {
+    it('sends q and parses suggestions', async () => {
       const fetchFn = mockFetch(AUTOCOMPLETE_RESPONSE)
       const client = createClient(fetchFn)
 
       const suggestions = await client.agAutocomplete('NW-25-24')
 
       expect(fetchFn).toHaveBeenCalledWith(
-        expect.stringContaining('/ag/autocomplete?location=NW-25-24'),
+        expect.stringContaining('/ag/autocomplete?q=NW-25-24'),
         expect.anything(),
       )
 
@@ -579,7 +704,7 @@ describe('TownshipClient', () => {
       expect(suggestions[0].unit).toBe('Quarter Section')
     })
 
-    it('passes limit and proximity options', async () => {
+    it('passes limit and proximity as lat/lng', async () => {
       const fetchFn = mockFetch(AUTOCOMPLETE_RESPONSE)
       const client = createClient(fetchFn)
 
@@ -587,7 +712,9 @@ describe('TownshipClient', () => {
 
       const url = fetchFn.mock.calls[0][0] as string
       expect(url).toContain('limit=5')
-      expect(url).toContain('proximity=-114%2C51')
+      expect(url).toContain('lat=51')
+      expect(url).toContain('lng=-114')
+      expect(url).not.toContain('proximity')
     })
   })
 
@@ -604,39 +731,53 @@ describe('TownshipClient', () => {
       )
 
       expect(report.legal_location).toBe('10-36-42-3-W5')
-      expect(report.activity.total_wells).toBe(4)
-      expect(report.activity.dominant_operator).toBe('EXAMPLE ENERGY LTD')
-      expect(report.production?.dominant_product).toBe('OIL')
-      expect(report.wells).toEqual([])
+      expect(report.province).toBe('AB')
+      expect(report.parcel?.area_ha).toBe(16.19)
+      expect(report.summary?.wells.total).toBe(4)
+      expect(report.summary?.wells.by_source.petrinex?.oil).toBe(2)
+      expect(report.summary?.operators.dominant?.name).toBe('EXAMPLE ENERGY LTD')
+      expect(report.summary?.operators.dominant?.slug).toBe('example-energy-ltd')
+      expect(report.production?.dominant_product).toBe('oil')
+      expect(report.production?.volumes.oil_m3).toBe(1250.5)
+      expect(report.tenure?.rows[0]?.expiry_state).toBe('expiring_soon')
+      expect(report.tenure?.rows[0]?.holder.slug).toBe('example-energy-ltd')
+      expect(report.wells?.total).toBe(1)
+      expect(report.wells?.rows[0]?.operator.ba_code).toBe('0AB1')
+      expect(report.pipelines?.rows).toEqual([])
       expect(report.alternative_energy).toBeNull()
     })
 
-    it('passes geometry flag', async () => {
+    it('passes include sections as a comma-separated list', async () => {
       const fetchFn = mockFetch(ENERGY_REPORT)
       const client = createClient(fetchFn)
 
-      await client.energyReport('10-36-42-3-W5', { geometry: true })
+      await client.energyReport('10-36-42-3-W5', { include: ['summary', 'geometry'] })
 
       const url = fetchFn.mock.calls[0][0] as string
-      expect(url).toContain('geometry=true')
+      expect(url).toContain('include=summary%2Cgeometry')
     })
 
     it('throws NotFoundError when no data (404)', async () => {
-      const client = createClient(mockFetch({ message: 'No energy data' }, 404))
+      const client = createClient(
+        mockFetch({ error: { code: 'not_found', message: 'No energy data' } }, 404),
+      )
       await expect(client.energyReport('1-1-1-1-W4')).rejects.toThrow(NotFoundError)
     })
   })
 
   describe('energyBatch', () => {
-    it('sends POST request and returns envelopes in order', async () => {
-      const batchResponse: EnergyBatchItem[] = [
-        { legal_location: '10-36-42-3-W5', status: 'ok', data: ENERGY_REPORT },
-        { legal_location: '1-1-1-1-W4', status: 'not_found', data: null },
-      ]
+    it('sends POST request and returns the {results, meta} envelope', async () => {
+      const batchResponse: ReportBatchResponse<EnergyReport> = {
+        results: [
+          { legal_location: '10-36-42-3-W5', status: 'ok', error: null, data: ENERGY_REPORT },
+          { legal_location: '1-1-1-1-W4', status: 'not_found', error: null, data: null },
+        ],
+        meta: { total: 2, ok: 1, not_found: 1, error: 0 },
+      }
       const fetchFn = mockFetch(batchResponse)
       const client = createClient(fetchFn)
 
-      const items = await client.energyBatch(['10-36-42-3-W5', '1-1-1-1-W4'])
+      const { results, meta } = await client.energyBatch(['10-36-42-3-W5', '1-1-1-1-W4'])
 
       expect(fetchFn).toHaveBeenCalledWith(
         expect.stringContaining('/energy/batch'),
@@ -646,14 +787,18 @@ describe('TownshipClient', () => {
         }),
       )
 
-      expect(items).toHaveLength(2)
-      expect(items[0].status).toBe('ok')
-      expect(items[0].data?.activity.total_wells).toBe(4)
-      expect(items[1].status).toBe('not_found')
+      expect(results).toHaveLength(2)
+      expect(results[0].status).toBe('ok')
+      expect(results[0].data?.summary?.wells.total).toBe(4)
+      expect(results[1].status).toBe('not_found')
+      expect(meta).toEqual({ total: 2, ok: 1, not_found: 1, error: 0 })
     })
 
     it('chunks batches larger than 25', async () => {
-      const fetchFn = mockFetch([])
+      const fetchFn = mockFetch({
+        results: [],
+        meta: { total: 0, ok: 0, not_found: 0, error: 0 },
+      })
       const client = createClient(fetchFn)
 
       const locations = Array.from({ length: 30 }, (_, i) => `10-${i}-42-3-W5`)
@@ -664,20 +809,20 @@ describe('TownshipClient', () => {
   })
 
   describe('energyAutocomplete', () => {
-    it('sends correct request and parses suggestions', async () => {
+    it('sends q and parses suggestions', async () => {
       const fetchFn = mockFetch(AUTOCOMPLETE_RESPONSE)
       const client = createClient(fetchFn)
 
       const suggestions = await client.energyAutocomplete('10-36-42')
 
       expect(fetchFn).toHaveBeenCalledWith(
-        expect.stringContaining('/energy/autocomplete?location=10-36-42'),
+        expect.stringContaining('/energy/autocomplete?q=10-36-42'),
         expect.anything(),
       )
       expect(suggestions).toHaveLength(1)
     })
 
-    it('passes limit and proximity options', async () => {
+    it('passes limit and proximity as lat/lng', async () => {
       const fetchFn = mockFetch(AUTOCOMPLETE_RESPONSE)
       const client = createClient(fetchFn)
 
@@ -685,12 +830,14 @@ describe('TownshipClient', () => {
 
       const url = fetchFn.mock.calls[0][0] as string
       expect(url).toContain('limit=5')
-      expect(url).toContain('proximity=-113.7%2C52.5')
+      expect(url).toContain('lat=52.5')
+      expect(url).toContain('lng=-113.7')
+      expect(url).not.toContain('proximity')
     })
   })
 
   describe('energyOperatorAutocomplete', () => {
-    it('sends correct request and returns operators', async () => {
+    it('sends correct request and returns the rows', async () => {
       const fetchFn = mockFetch(OPERATORS_RESPONSE)
       const client = createClient(fetchFn)
 
@@ -704,6 +851,7 @@ describe('TownshipClient', () => {
       expect(operators).toHaveLength(1)
       expect(operators[0].ba_code).toBe('0AB1')
       expect(operators[0].name).toBe('EXAMPLE ENERGY LTD')
+      expect(operators[0].slug).toBe('example-energy-ltd')
       expect(operators[0].active_wells).toBe(1250)
     })
 

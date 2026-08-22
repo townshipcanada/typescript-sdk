@@ -258,64 +258,72 @@ console.log(featureCollection.features); // LocationFeature[]
 
 ## Ag API (Agriculture Reports)
 
-Agriculture parcel reports for DLS quarter sections: productivity (LSRS/CLI), crop rotation, soils, land use, drought, wetlands, and parcel context. Inputs may be a quarter section or an LSD (resolved to its containing quarter section). Coverage: AB, SK, MB — BC (NTS) locations throw `ValidationError`.
+Agriculture parcel reports for DLS quarter sections: productivity (LSRS/CLI), crop rotation, soils, land use, drought, wetlands, hydrology, parcel context, and provincial detail. Inputs may be a quarter section or an LSD (resolved to its containing quarter section). Coverage: AB, SK, MB — BC (NTS) locations throw `ValidationError` with code `bc_not_supported`.
 
 ### `client.agReport(legalLocation, options?)`
 
-Get the full agriculture report for one quarter section or LSD.
+Get the agriculture report for one quarter section or LSD.
 
 ```typescript
 const report = await client.agReport("NW-36-42-3-W5");
 
-console.log(report.area_ha); // 64.75
-console.log(report.productivity?.lsrs_score); // 72
-console.log(report.soil?.order); // "Chernozemic"
-console.log(report.cropping?.rotation_pattern); // "Canola-Wheat"
-
-// Include the quarter-section boundary as GeoJSON
-const withGeometry = await client.agReport("NW-36-42-3-W5", { geometry: true });
-console.log(withGeometry.geometry?.type); // "Polygon"
+console.log(report.parcel.area_ha); // 64.75
+console.log(report.productivity?.lsrs?.score); // 72
+console.log(report.soil?.classification?.order); // "Chernozemic"
+console.log(report.cropping?.rotation); // "Canola-Wheat"
+console.log(report.drought?.class); // "D1"
+console.log(report.hydrology?.watercourse?.distance_m); // 240
 
 // LSD inputs resolve to their containing quarter section
 const fromLsd = await client.agReport("10-36-42-3-W5");
-console.log(fromLsd.qs_legal_location); // "NE-36-42-3-W5"
+console.log(fromLsd.resolved_legal_location); // "NE-36-42-3-W5"
+console.log(fromLsd.grain); // "lsd"
+
+// Only the sections you need — omitted sections are never queried
+const slim = await client.agReport("NW-36-42-3-W5", { include: ["soil", "drought"] });
+
+// Attach the parcel boundary as GeoJSON under parcel.geometry
+const withGeometry = await client.agReport("NW-36-42-3-W5", { include: ["geometry"] });
+console.log(withGeometry.parcel.geometry?.type); // "Polygon"
 ```
 
 **Options:**
 
-| Option     | Type      | Default | Description                          |
-| ---------- | --------- | ------- | ------------------------------------ |
-| `geometry` | `boolean` | `false` | Include the parcel boundary GeoJSON  |
+| Option    | Type                 | Default       | Description                                                                                                                                                                                                              |
+| --------- | -------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `include` | `AgReportSection[]`  | (full report) | Section projection. Valid values: `productivity`, `cropping`, `soil`, `land_use`, `drought`, `wetlands`, `hydrology`, `parcel_context`, `provincial_detail`, `geometry`. `geometry` attaches the boundary under `parcel.geometry`. |
 
-**Returns:** `AgReport` — sections (`productivity`, `cropping`, `soil`, `land_use`, `drought`, `wetlands`, `parcel_context`) degrade independently to `null` when a data layer is unavailable. Saskatchewan adds `sk` extras (crown land, soils, pastures) and Manitoba adds `mb` extras (soil survey components).
+**Returns:** `AgReport` — sections degrade independently to `null` when a data layer is unavailable (`meta.unavailable` says which and why). `provincial_detail` carries the Saskatchewan extras (crown land, soils, pastures) or the Manitoba soil survey components, and is `null` for Alberta parcels.
 
 ---
 
 ### `client.agBatch(locations)`
 
-Get agriculture reports for multiple locations. Automatically chunks large batches into requests of 25 (API max). Results come back in input order with a per-item status envelope.
+Get agriculture reports for multiple locations. Automatically chunks large batches into requests of 25 (API max). Results come back in input order inside a `{results, meta}` envelope; the SDK sums the `meta` counters across chunks.
 
 ```typescript
-const items = await client.agBatch(["NW-36-42-3-W5", "10-2-24-28-W4", "not a location"]);
+const { results, meta } = await client.agBatch(["NW-36-42-3-W5", "10-2-24-28-W4", "not a location"]);
 
-for (const item of items) {
+console.log(meta); // { total: 3, ok: 2, not_found: 0, error: 1 }
+
+for (const item of results) {
   if (item.status === "ok") {
-    console.log(item.legal_location, item.data?.area_ha);
+    console.log(item.legal_location, item.data?.parcel.area_ha);
   } else if (item.status === "not_found") {
     console.log(item.legal_location, "no agriculture coverage");
   } else {
-    console.log(item.legal_location, item.error); // "Invalid legal location format"
+    console.log(item.legal_location, item.error?.code); // "invalid_legal_location"
   }
 }
 ```
 
-**Returns:** `AgBatchItem[]` — `{ legal_location, status: "ok" | "not_found" | "error", data, error? }`
+**Returns:** `ReportBatchResponse<AgReport>` — `{ results, meta }` where each item is `{ legal_location, status: "ok" | "not_found" | "error", error: { code, message } | null, data }` and `meta` is `{ total, ok, not_found, error }`.
 
 ---
 
 ### `client.agAutocomplete(query, options?)`
 
-Suggest quarter sections with agriculture coverage as you type. Every suggestion is guaranteed to return a report. Same options as `autocomplete`.
+Suggest quarter sections with agriculture coverage as you type. Every suggestion is guaranteed to return a report. Same options as `autocomplete` (sent to the API as `q` plus explicit `lat`/`lng`).
 
 ```typescript
 const suggestions = await client.agAutocomplete("NW-36-42", { limit: 5 });
@@ -328,57 +336,68 @@ console.log(suggestions[0].legalLocation); // "NW-36-42-3-W5"
 
 ## Energy API (Energy Reports)
 
-Per-parcel energy reports for Legal Subdivisions (LSDs): wells, pipelines, facilities, trailing-12-month production, Crown tenure, and alternative energy. Coverage: AB, SK, MB (wells + tenure only) — BC (NTS) locations throw `ValidationError`.
+Per-parcel energy reports for Legal Subdivisions (LSDs): wells, pipelines, facilities, trailing-12-month production, Crown tenure, and alternative energy. Coverage: AB, SK, MB (wells + tenure only) — BC (NTS) locations throw `ValidationError` with code `bc_not_supported`.
 
 ### `client.energyReport(legalLocation, options?)`
 
-Get the full energy report for one LSD.
+Get the energy report for one LSD.
 
 ```typescript
 const report = await client.energyReport("10-36-42-3-W5");
 
-console.log(report.activity.total_wells); // 4
-console.log(report.activity.active_wells); // 2
-console.log(report.activity.dominant_operator); // "EXAMPLE ENERGY LTD"
-console.log(report.production?.oil_m3_12mo); // 1250.5
-console.log(report.tenure.length); // 1
-console.log(report.wells[0]?.uwi); // "100103604203W500"
+console.log(report.summary?.wells.total); // 4
+console.log(report.summary?.wells.active); // 2
+console.log(report.summary?.operators.dominant?.name); // "EXAMPLE ENERGY LTD"
+console.log(report.production?.volumes.oil_m3); // 1250.5
+console.log(report.tenure?.rows[0]?.expiry_state); // "expiring_soon"
+console.log(report.wells?.rows[0]?.uwi); // "100103604203W500"
 
-// Include the LSD boundary as GeoJSON
-const withGeometry = await client.energyReport("10-36-42-3-W5", { geometry: true });
+// Array sections are envelopes: total is the true count, `more` links to
+// the unbounded collection endpoint when the report caps the rows
+console.log(report.wells?.total, report.wells?.truncated); // 4, false
+
+// Only the sections you need — omitted sections are never queried
+const slim = await client.energyReport("10-36-42-3-W5", {
+  include: ["summary", "production"],
+});
+
+// Attach the LSD boundary as GeoJSON under parcel.geometry
+const withGeometry = await client.energyReport("10-36-42-3-W5", { include: ["geometry"] });
 ```
 
 **Options:**
 
-| Option     | Type      | Default | Description                         |
-| ---------- | --------- | ------- | ----------------------------------- |
-| `geometry` | `boolean` | `false` | Include the parcel boundary GeoJSON |
+| Option    | Type                    | Default       | Description                                                                                                                                                                    |
+| --------- | ----------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `include` | `EnergyReportSection[]` | (full report) | Section projection. Valid values: `summary`, `production`, `tenure`, `wells`, `pipelines`, `facilities`, `alternative_energy`, `geometry`. `geometry` attaches the boundary under `parcel.geometry`. |
 
-**Returns:** `EnergyReport` — a `null` section (`production`, `alternative_energy`) or empty array (`wells`, `pipelines`, `facilities`, `tenure`) means no data at that location or that one source degraded; the rest of the report is still trustworthy.
+**Returns:** `EnergyReport` — a `null` section means no data at that location or that one source degraded (`meta.unavailable` says which); the rest of the report is still trustworthy. Array sections (`tenure`, `wells`, `pipelines`, `facilities`) are `{ total, returned, truncated, more, rows }` envelopes.
 
 ---
 
 ### `client.energyBatch(locations)`
 
-Get energy reports for multiple LSDs. Automatically chunks large batches into requests of 25 (API max). Results come back in input order with a per-item status envelope.
+Get energy reports for multiple LSDs. Automatically chunks large batches into requests of 25 (API max). Results come back in input order inside a `{results, meta}` envelope; the SDK sums the `meta` counters across chunks.
 
 ```typescript
-const items = await client.energyBatch(["10-36-42-3-W5", "4-12-50-24-W4"]);
+const { results, meta } = await client.energyBatch(["10-36-42-3-W5", "4-12-50-24-W4"]);
 
-for (const item of items) {
+console.log(meta); // { total: 2, ok: 2, not_found: 0, error: 0 }
+
+for (const item of results) {
   if (item.status === "ok") {
-    console.log(item.legal_location, item.data?.activity.total_wells);
+    console.log(item.legal_location, item.data?.summary?.wells.total);
   }
 }
 ```
 
-**Returns:** `EnergyBatchItem[]` — `{ legal_location, status: "ok" | "not_found" | "error", data, error? }`
+**Returns:** `ReportBatchResponse<EnergyReport>` — `{ results, meta }` where each item is `{ legal_location, status: "ok" | "not_found" | "error", error: { code, message } | null, data }` and `meta` is `{ total, ok, not_found, error }`.
 
 ---
 
 ### `client.energyAutocomplete(query, options?)`
 
-Suggest LSDs with energy data for typeahead inputs. Every suggestion is guaranteed to return a report. Same options as `autocomplete`.
+Suggest LSDs with energy data for typeahead inputs. Every suggestion is guaranteed to return a report. Same options as `autocomplete` (sent to the API as `q` plus explicit `lat`/`lng`).
 
 ```typescript
 const suggestions = await client.energyAutocomplete("10-36-42", { limit: 5 });
@@ -398,7 +417,7 @@ Search AER licensees by name or BA code for operator search inputs. Prefix match
 const operators = await client.energyOperatorAutocomplete("cenovus");
 
 for (const op of operators) {
-  console.log(op.ba_code, op.name, op.active_wells);
+  console.log(op.ba_code, op.name, op.slug, op.active_wells);
 }
 ```
 
@@ -412,13 +431,33 @@ for (const op of operators) {
 
 ```typescript
 {
-  ba_code: string | null; // "0AB1"
   name: string; // "EXAMPLE ENERGY LTD"
+  ba_code: string | null; // "0AB1"
+  slug: string | null; // "example-energy-ltd" — routes to /energy/operators/{name}
   active_wells: number | null; // 1250
   abandoned_wells: number | null; // 320
   orphan_wells: number | null; // 0
 }
 ```
+
+---
+
+## Migrating to v2 (Ag & Energy v1 contract)
+
+v2.0.0 tracks the breaking v1 reshape of the Ag and Energy APIs. The parcel search/reverse/batch/autocomplete surface is unchanged.
+
+**Request changes**
+
+- `agReport`/`energyReport`: `{ geometry: true }` is gone — pass `{ include: ["geometry"] }`. `include` also projects reports down to just the sections you need.
+- `agAutocomplete`/`energyAutocomplete` now call the API with `q` and explicit `lat`/`lng` (previously `location` and `proximity`). The SDK options are unchanged (`limit`, `proximity: [lng, lat]`).
+
+**Response changes**
+
+- `agBatch`/`energyBatch` return `{ results, meta }` instead of a bare array; each item's `error` is now `{ code, message } | null` (always present, previously an optional string).
+- `AgReport`: `qs_legal_location` → `resolved_legal_location` (always present) plus new `grain`; root `area_ha` → `parcel.area_ha` (plus `parcel.centroid`/`parcel.geometry`); `productivity` is nested `{lsrs: {score, class, limiter}, cli: {...}}`; `cropping.dominant_crop*` → `cropping.dominant {code, name, category}` and `rotation_pattern` → `rotation`; `soil.group`/`soil.subgroup` → `soil.classification {order, great_group, subgroup_code}`; `land_use` is `{dominant {code, label, ipcc_class}, breakdown}` with string codes; `drought` is `{class, severity_label, as_of: "YYYY-MM"}`; new `hydrology` section; `sk`/`mb` → `provincial_detail`; new `units` and `meta` blocks.
+- `EnergyReport`: `activity` → `summary` (`{wells: {total, active, by_source, ...}, pipelines, facilities, operators: {dominant}}`); `production` is `{window_months, volumes: {oil_m3, gas_e3m3, condensate_m3, water_m3}, dominant_product, producing_well_count, ...}` (lowercase enums); the array sections are `{total, returned, truncated, more, rows}` envelopes; tenure rows are the uniform shape with signed `days_to_expiry` and `expiry_state` (replacing `is_expiring_soon`/`is_perpetual`); companies are `{name, ba_code, slug}` objects (`operator`, `holder`, `licensee`); pipeline rows rename `mop_kpa` → `max_operating_pressure_kpa` and `total_length_km` → `segment_length_km`; points are `{lat, lng}` under `location`/`overlap_point`/`centroid`; new `parcel`, `units`, and `meta` blocks. Provinces are uppercase (`"AB"`).
+- `energyOperatorAutocomplete` rows gain `slug`; the raw response envelope is `{rows, meta}` (previously `{operators}`).
+- Errors: the APIs return `{"error": {"code", "message"}}`; SDK errors now expose `error.code` (e.g. `invalid_legal_location`, `bc_not_supported`, `rate_limit_exceeded`).
 
 ---
 

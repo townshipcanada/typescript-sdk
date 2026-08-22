@@ -13,11 +13,12 @@ import type {
   LocationFeature,
   GeoJSONPolygon,
   GeoJSONMultiPolygon,
-  ReportOptions,
+  AgReportOptions,
   AgReport,
-  AgBatchItem,
+  EnergyReportOptions,
   EnergyReport,
-  EnergyBatchItem,
+  ReportBatchItem,
+  ReportBatchResponse,
   EnergyOperator,
   EnergyOperatorsResponse,
   OperatorAutocompleteOptions
@@ -281,51 +282,54 @@ export class TownshipClient {
 
   /**
    * Get the agriculture parcel report for a quarter section or LSD.
-   * LSD inputs are resolved to their containing quarter section.
+   * LSD inputs are resolved to their containing quarter section
+   * (`resolved_legal_location` is the quarter the report describes).
    *
    * @param legalLocation - A quarter section (e.g. "NW-36-42-3-W5") or LSD (e.g. "10-36-42-3-W5")
-   * @param options - Optional geometry flag
+   * @param options - Optional section projection (`include`)
    * @returns The agriculture report
    *
    * @example
    * ```ts
    * const report = await client.agReport('NW-36-42-3-W5')
-   * console.log(report.productivity?.lsrs_score) // 72
-   * console.log(report.soil?.order)              // "Chernozemic"
+   * console.log(report.parcel.area_ha)                 // 64.75
+   * console.log(report.productivity?.lsrs?.score)      // 72
+   * console.log(report.soil?.classification?.order)    // "Chernozemic"
+   *
+   * // Only the sections you need — the rest are never queried
+   * const soil = await client.agReport('NW-36-42-3-W5', { include: ['soil', 'drought'] })
+   *
+   * // Attach the parcel boundary under parcel.geometry
+   * const withGeometry = await client.agReport('NW-36-42-3-W5', { include: ['geometry'] })
    * ```
    */
-  async agReport(legalLocation: string, options?: ReportOptions): Promise<AgReport> {
+  async agReport(legalLocation: string, options?: AgReportOptions): Promise<AgReport> {
     const params = new URLSearchParams({ legal_location: legalLocation });
-    if (options?.geometry) params.set("geometry", "true");
+    if (options?.include?.length) params.set("include", options.include.join(","));
     return this.request<AgReport>(`/ag/report?${params.toString()}`);
   }
 
   /**
    * Get agriculture reports for multiple locations in batch.
    * Automatically chunks large batches into requests of 25 (API max).
-   * Results are returned in input order with per-item status.
+   * Results are returned in input order with per-item status; `meta`
+   * counters are summed across chunks.
    *
    * @param locations - Array of quarter section or LSD legal locations
-   * @returns Array of batch envelopes ({ legal_location, status, data, error? })
+   * @returns A `{results, meta}` envelope; each item is
+   *   `{ legal_location, status, error, data }` (`error` is null unless status is "error")
    *
    * @example
    * ```ts
-   * const items = await client.agBatch(['NW-36-42-3-W5', '10-2-24-28-W4'])
-   * for (const item of items) {
-   *   if (item.status === 'ok') console.log(item.data?.area_ha)
+   * const { results, meta } = await client.agBatch(['NW-36-42-3-W5', '10-2-24-28-W4'])
+   * console.log(meta.ok, meta.not_found, meta.error)
+   * for (const item of results) {
+   *   if (item.status === 'ok') console.log(item.data?.parcel.area_ha)
    * }
    * ```
    */
-  async agBatch(locations: string[]): Promise<AgBatchItem[]> {
-    const allResults: AgBatchItem[] = [];
-    for (const batch of this.chunk(locations, MAX_REPORT_BATCH_SIZE)) {
-      const response = await this.request<AgBatchItem[]>("/ag/batch", {
-        method: "POST",
-        body: JSON.stringify(batch)
-      });
-      allResults.push(...response);
-    }
-    return allResults;
+  async agBatch(locations: string[]): Promise<ReportBatchResponse<AgReport>> {
+    return this.reportBatch<AgReport>("/ag/batch", locations);
   }
 
   /**
@@ -346,7 +350,7 @@ export class TownshipClient {
     query: string,
     options?: AutocompleteOptions
   ): Promise<AutocompleteSuggestion[]> {
-    return this.fetchAutocomplete("/ag/autocomplete", query, options);
+    return this.fetchAutocomplete("/ag/autocomplete", query, options, "q");
   }
 
   // ── Energy API ───────────────────────────────────────────────────
@@ -356,48 +360,49 @@ export class TownshipClient {
    * Covers wells, pipelines, facilities, production, and Crown tenure.
    *
    * @param legalLocation - An LSD legal location (e.g. "10-36-42-3-W5")
-   * @param options - Optional geometry flag
+   * @param options - Optional section projection (`include`)
    * @returns The energy report
    *
    * @example
    * ```ts
    * const report = await client.energyReport('10-36-42-3-W5')
-   * console.log(report.activity.total_wells)      // 4
-   * console.log(report.activity.dominant_operator) // "EXAMPLE ENERGY LTD"
+   * console.log(report.summary?.wells.total)                    // 4
+   * console.log(report.summary?.operators.dominant?.name)       // "EXAMPLE ENERGY LTD"
+   * console.log(report.wells?.rows[0]?.uwi)                     // "100103604203W500"
+   *
+   * // Only the sections you need — the rest are never queried
+   * const slim = await client.energyReport('10-36-42-3-W5', {
+   *   include: ['summary', 'production']
+   * })
    * ```
    */
-  async energyReport(legalLocation: string, options?: ReportOptions): Promise<EnergyReport> {
+  async energyReport(legalLocation: string, options?: EnergyReportOptions): Promise<EnergyReport> {
     const params = new URLSearchParams({ legal_location: legalLocation });
-    if (options?.geometry) params.set("geometry", "true");
+    if (options?.include?.length) params.set("include", options.include.join(","));
     return this.request<EnergyReport>(`/energy/report?${params.toString()}`);
   }
 
   /**
    * Get energy reports for multiple LSDs in batch.
    * Automatically chunks large batches into requests of 25 (API max).
-   * Results are returned in input order with per-item status.
+   * Results are returned in input order with per-item status; `meta`
+   * counters are summed across chunks.
    *
    * @param locations - Array of LSD legal locations
-   * @returns Array of batch envelopes ({ legal_location, status, data, error? })
+   * @returns A `{results, meta}` envelope; each item is
+   *   `{ legal_location, status, error, data }` (`error` is null unless status is "error")
    *
    * @example
    * ```ts
-   * const items = await client.energyBatch(['10-36-42-3-W5', '4-12-50-24-W4'])
-   * for (const item of items) {
-   *   if (item.status === 'ok') console.log(item.data?.activity.total_wells)
+   * const { results, meta } = await client.energyBatch(['10-36-42-3-W5', '4-12-50-24-W4'])
+   * console.log(meta.ok, meta.not_found, meta.error)
+   * for (const item of results) {
+   *   if (item.status === 'ok') console.log(item.data?.summary?.wells.total)
    * }
    * ```
    */
-  async energyBatch(locations: string[]): Promise<EnergyBatchItem[]> {
-    const allResults: EnergyBatchItem[] = [];
-    for (const batch of this.chunk(locations, MAX_REPORT_BATCH_SIZE)) {
-      const response = await this.request<EnergyBatchItem[]>("/energy/batch", {
-        method: "POST",
-        body: JSON.stringify(batch)
-      });
-      allResults.push(...response);
-    }
-    return allResults;
+  async energyBatch(locations: string[]): Promise<ReportBatchResponse<EnergyReport>> {
+    return this.reportBatch<EnergyReport>("/energy/batch", locations);
   }
 
   /**
@@ -418,7 +423,7 @@ export class TownshipClient {
     query: string,
     options?: AutocompleteOptions
   ): Promise<AutocompleteSuggestion[]> {
-    return this.fetchAutocomplete("/energy/autocomplete", query, options);
+    return this.fetchAutocomplete("/energy/autocomplete", query, options, "q");
   }
 
   /**
@@ -432,6 +437,7 @@ export class TownshipClient {
    * ```ts
    * const operators = await client.energyOperatorAutocomplete('cenovus')
    * console.log(operators[0].name)         // "CENOVUS ENERGY INC."
+   * console.log(operators[0].slug)         // "cenovus-energy-inc"
    * console.log(operators[0].active_wells) // 1250
    * ```
    */
@@ -445,20 +451,47 @@ export class TownshipClient {
     const response = await this.request<EnergyOperatorsResponse>(
       `/energy/operators/autocomplete?${params.toString()}`
     );
-    return response.operators;
+    return response.rows;
   }
 
   // ── Internal Helpers ─────────────────────────────────────────────
 
+  private async reportBatch<R>(
+    path: string,
+    locations: string[]
+  ): Promise<ReportBatchResponse<R>> {
+    const results: ReportBatchItem<R>[] = [];
+    const meta = { total: 0, ok: 0, not_found: 0, error: 0 };
+    for (const batch of this.chunk(locations, MAX_REPORT_BATCH_SIZE)) {
+      const response = await this.request<ReportBatchResponse<R>>(path, {
+        method: "POST",
+        body: JSON.stringify(batch)
+      });
+      results.push(...response.results);
+      meta.total += response.meta.total;
+      meta.ok += response.meta.ok;
+      meta.not_found += response.meta.not_found;
+      meta.error += response.meta.error;
+    }
+    return { results, meta };
+  }
+
   private async fetchAutocomplete(
     path: string,
     query: string,
-    options?: AutocompleteOptions
+    options?: AutocompleteOptions,
+    queryParam: "location" | "q" = "location"
   ): Promise<AutocompleteSuggestion[]> {
-    const params = new URLSearchParams({ location: query });
+    const params = new URLSearchParams({ [queryParam]: query });
     if (options?.limit != null) params.set("limit", String(options.limit));
     if (options?.proximity) {
-      params.set("proximity", `${options.proximity[0]},${options.proximity[1]}`);
+      if (queryParam === "q") {
+        // Ag/Energy v1 autocomplete takes two explicit params
+        params.set("lat", String(options.proximity[1]));
+        params.set("lng", String(options.proximity[0]));
+      } else {
+        params.set("proximity", `${options.proximity[0]},${options.proximity[1]}`);
+      }
     }
 
     const response = await this.request<AutocompleteResponse>(`${path}?${params.toString()}`);
@@ -511,29 +544,36 @@ export class TownshipClient {
 
   private async handleErrorResponse(response: Response): Promise<never> {
     let message: string;
+    let code: string | null = null;
     try {
-      const body = await response.json();
-      message =
-        (body as { message?: string }).message ??
-        (body as { error?: string }).error ??
-        response.statusText;
+      const body = (await response.json()) as {
+        error?: { code?: string; message?: string } | string;
+        message?: string;
+      };
+      // Ag/Energy v1 error bodies are {"error": {"code", "message"}}
+      if (body.error && typeof body.error === "object") {
+        message = body.error.message ?? response.statusText;
+        code = body.error.code ?? null;
+      } else {
+        message = body.message ?? (typeof body.error === "string" ? body.error : undefined) ?? response.statusText;
+      }
     } catch {
       message = response.statusText;
     }
 
     switch (response.status) {
       case 400:
-        throw new ValidationError(message);
+        throw new ValidationError(message, code);
       case 401:
-        throw new AuthenticationError(message);
+        throw new AuthenticationError(message, code);
       case 404:
-        throw new NotFoundError(message);
+        throw new NotFoundError(message, code);
       case 413:
-        throw new PayloadTooLargeError(message);
+        throw new PayloadTooLargeError(message, code);
       case 429:
-        throw new RateLimitError(message);
+        throw new RateLimitError(message, code);
       default:
-        throw new TownshipError(message, response.status);
+        throw new TownshipError(message, response.status, code);
     }
   }
 
