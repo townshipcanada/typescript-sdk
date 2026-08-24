@@ -297,40 +297,9 @@ console.log(withGeometry.parcel.geometry?.type); // "Polygon"
 
 ---
 
-### `client.agBatch(locations)`
+### Other Ag routes
 
-Get agriculture reports for multiple locations. Automatically chunks large batches into requests of 25 (API max). Results come back in input order inside a `{results, meta}` envelope; the SDK sums the `meta` counters across chunks.
-
-```typescript
-const { results, meta } = await client.agBatch(["NW-36-42-3-W5", "10-2-24-28-W4", "not a location"]);
-
-console.log(meta); // { total: 3, ok: 2, not_found: 0, error: 1 }
-
-for (const item of results) {
-  if (item.status === "ok") {
-    console.log(item.legal_location, item.data?.parcel.area_ha);
-  } else if (item.status === "not_found") {
-    console.log(item.legal_location, "no agriculture coverage");
-  } else {
-    console.log(item.legal_location, item.error?.code); // "invalid_legal_location"
-  }
-}
-```
-
-**Returns:** `ReportBatchResponse<AgReport>` — `{ results, meta }` where each item is `{ legal_location, status: "ok" | "not_found" | "error", error: { code, message } | null, data }` and `meta` is `{ total, ok, not_found, error }`.
-
----
-
-### `client.agAutocomplete(query, options?)`
-
-Suggest quarter sections with agriculture coverage as you type. Every suggestion is guaranteed to return a report. Same options as `autocomplete` (sent to the API as `q` plus explicit `lat`/`lng`).
-
-```typescript
-const suggestions = await client.agAutocomplete("NW-36-42", { limit: 5 });
-console.log(suggestions[0].legalLocation); // "NW-36-42-3-W5"
-```
-
-**Returns:** `AutocompleteSuggestion[]`
+The SDK wraps `GET /ag/report`. The Ag API also serves the eight per-section routes — `/ag/productivity`, `/ag/cropping`, `/ag/soil`, `/ag/land-use`, `/ag/drought`, `/ag/wetlands`, `/ag/hydrology`, `/ag/parcel-context` — which return the same section payloads `agReport` embeds. Use `agReport(location, { include: [...] })` to fetch just the sections you need in one call, or call those routes directly. For typeahead over legal locations, use `client.autocomplete`.
 
 ---
 
@@ -375,70 +344,9 @@ const withGeometry = await client.energyReport("10-36-42-3-W5", { include: ["geo
 
 ---
 
-### `client.energyBatch(locations)`
+### Other Energy routes
 
-Get energy reports for multiple LSDs. Automatically chunks large batches into requests of 25 (API max). Results come back in input order inside a `{results, meta}` envelope; the SDK sums the `meta` counters across chunks.
-
-```typescript
-const { results, meta } = await client.energyBatch(["10-36-42-3-W5", "4-12-50-24-W4"]);
-
-console.log(meta); // { total: 2, ok: 2, not_found: 0, error: 0 }
-
-for (const item of results) {
-  if (item.status === "ok") {
-    console.log(item.legal_location, item.data?.summary?.wells.total);
-  }
-}
-```
-
-**Returns:** `ReportBatchResponse<EnergyReport>` — `{ results, meta }` where each item is `{ legal_location, status: "ok" | "not_found" | "error", error: { code, message } | null, data }` and `meta` is `{ total, ok, not_found, error }`.
-
----
-
-### `client.energyAutocomplete(query, options?)`
-
-Suggest LSDs with energy data for typeahead inputs. Every suggestion is guaranteed to return a report. Same options as `autocomplete` (sent to the API as `q` plus explicit `lat`/`lng`).
-
-```typescript
-const suggestions = await client.energyAutocomplete("10-36-42", { limit: 5 });
-console.log(suggestions[0].legalLocation); // "10-36-42-3-W5"
-console.log(suggestions[0].unit); // "LSD"
-```
-
-**Returns:** `AutocompleteSuggestion[]`
-
----
-
-### `client.energyOperatorAutocomplete(query, options?)`
-
-Search AER licensees by name or BA code for operator search inputs. Prefix matches rank first, then by active well count.
-
-```typescript
-const operators = await client.energyOperatorAutocomplete("cenovus");
-
-for (const op of operators) {
-  console.log(op.ba_code, op.name, op.slug, op.active_wells);
-}
-```
-
-**Options:**
-
-| Option  | Type     | Default | Description              |
-| ------- | -------- | ------- | ------------------------ |
-| `limit` | `number` | `10`    | Number of results (1-20) |
-
-**Returns:** `EnergyOperator[]`
-
-```typescript
-{
-  name: string; // "EXAMPLE ENERGY LTD"
-  ba_code: string | null; // "0AB1"
-  slug: string | null; // "example-energy-ltd" — routes to /energy/operators/{name}
-  active_wells: number | null; // 1250
-  abandoned_wells: number | null; // 320
-  orphan_wells: number | null; // 0
-}
-```
+The SDK wraps `GET /energy/report`. The Energy API also serves the per-section routes — `/energy/summary`, `/energy/production`, `/energy/alternative-energy` — the collection routes `/energy/wells`, `/energy/pipelines`, `/energy/facilities`, `/energy/tenure` (the unbounded views the report's `more` links point at), and the cross-parcel routes `/energy/operators`, `/energy/operators/{name}`, `/energy/tenure/expiring`, `/energy/dispositions/{number}`, `/energy/pipelines/{licence}`. Use `energyReport(location, { include: [...] })` for the sections you need in one call, or call those routes directly. For operator lookup, `GET /energy/operators?q=` serves typeahead; for legal locations, use `client.autocomplete`.
 
 ---
 
@@ -446,17 +354,18 @@ for (const op of operators) {
 
 v2.0.0 tracks the breaking v1 reshape of the Ag and Energy APIs. The parcel search/reverse/batch/autocomplete surface is unchanged.
 
+**Removed surfaces**
+
+Ag and Energy batch and autocomplete are not available in 2.0.0. `agBatch`, `energyBatch`, `agAutocomplete`, `energyAutocomplete`, and `energyOperatorAutocomplete` have no counterpart — the underlying endpoints were retired. Loop over `agReport`/`energyReport` for multiple locations, use `client.autocomplete` for legal-location typeahead, and `GET /energy/operators?q=` for operator typeahead.
+
 **Request changes**
 
 - `agReport`/`energyReport`: `{ geometry: true }` is gone — pass `{ include: ["geometry"] }`. `include` also projects reports down to just the sections you need.
-- `agAutocomplete`/`energyAutocomplete` now call the API with `q` and explicit `lat`/`lng` (previously `location` and `proximity`). The SDK options are unchanged (`limit`, `proximity: [lng, lat]`).
 
 **Response changes**
 
-- `agBatch`/`energyBatch` return `{ results, meta }` instead of a bare array; each item's `error` is now `{ code, message } | null` (always present, previously an optional string).
 - `AgReport`: `qs_legal_location` → `resolved_legal_location` (always present) plus new `grain`; root `area_ha` → `parcel.area_ha` (plus `parcel.centroid`/`parcel.geometry`); `productivity` is nested `{lsrs: {score, class, limiter}, cli: {...}}`; `cropping.dominant_crop*` → `cropping.dominant {code, name, category}` and `rotation_pattern` → `rotation`; `soil.group`/`soil.subgroup` → `soil.classification {order, great_group, subgroup_code}`; `land_use` is `{dominant {code, label, ipcc_class}, breakdown}` with string codes; `drought` is `{class, severity_label, as_of: "YYYY-MM"}`; new `hydrology` section; `sk`/`mb` → `provincial_detail`; new `units` and `meta` blocks.
 - `EnergyReport`: `activity` → `summary` (`{wells: {total, active, by_source, ...}, pipelines, facilities, operators: {dominant}}`); `production` is `{window_months, volumes: {oil_m3, gas_e3m3, condensate_m3, water_m3}, dominant_product, producing_well_count, ...}` (lowercase enums); the array sections are `{total, returned, truncated, more, rows}` envelopes; tenure rows are the uniform shape with signed `days_to_expiry` and `expiry_state` (replacing `is_expiring_soon`/`is_perpetual`); companies are `{name, ba_code, slug}` objects (`operator`, `holder`, `licensee`); pipeline rows rename `mop_kpa` → `max_operating_pressure_kpa` and `total_length_km` → `segment_length_km`; points are `{lat, lng}` under `location`/`overlap_point`/`centroid`; new `parcel`, `units`, and `meta` blocks. Provinces are uppercase (`"AB"`).
-- `energyOperatorAutocomplete` rows gain `slug`; the raw response envelope is `{rows, meta}` (previously `{operators}`).
 - Errors: the APIs return `{"error": {"code", "message"}}`; SDK errors now expose `error.code` (e.g. `invalid_legal_location`, `bc_not_supported`, `rate_limit_exceeded`).
 
 ---

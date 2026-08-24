@@ -237,44 +237,6 @@ export type ExpiryState =
   | 'active'
   | 'perpetual'
 
-/** Per-item status in a batch report response. */
-export type ReportBatchStatus = 'ok' | 'not_found' | 'error'
-
-/** Per-item error in a batch report response. */
-export interface ReportBatchError {
-  code: 'invalid_legal_location' | 'batch_deadline_exceeded' | 'report_failed' | (string & {})
-  message: string
-}
-
-/**
- * Envelope for one item of a batch report response.
- * Items are returned in input order and always carry all four keys.
- */
-export interface ReportBatchItem<R> {
-  /** The legal location as submitted */
-  legal_location: string
-  /** "ok" (report in data), "not_found" (no coverage), or "error" (invalid/failed) */
-  status: ReportBatchStatus
-  /** `{code, message}` when status is "error", otherwise null */
-  error: ReportBatchError | null
-  /** The full report when status is "ok", otherwise null */
-  data: R | null
-}
-
-/** Counters over a batch response, summed across chunks by the SDK. */
-export interface ReportBatchMeta {
-  total: number
-  ok: number
-  not_found: number
-  error: number
-}
-
-/** The `{results, meta}` envelope both batch endpoints return. */
-export interface ReportBatchResponse<R> {
-  results: ReportBatchItem<R>[]
-  meta: ReportBatchMeta
-}
-
 // ── Ag API Types ─────────────────────────────────────────────────────
 
 /** Sections of the agriculture report addressable through `include=`. */
@@ -492,8 +454,6 @@ export interface AgReport {
   meta?: ReportMeta
   [key: string]: unknown
 }
-
-export type AgBatchItem = ReportBatchItem<AgReport>
 
 // ── Energy API Types ─────────────────────────────────────────────────
 
@@ -722,26 +682,3 @@ export interface EnergyReport {
   [key: string]: unknown
 }
 
-export type EnergyBatchItem = ReportBatchItem<EnergyReport>
-
-/** An AER licensee returned by operator autocomplete. */
-export interface EnergyOperator {
-  name: string
-  ba_code: string | null
-  /** Routes straight to `/operators/{name}` */
-  slug: string | null
-  active_wells: number | null
-  abandoned_wells: number | null
-  orphan_wells: number | null
-  [key: string]: unknown
-}
-
-export interface EnergyOperatorsResponse {
-  rows: EnergyOperator[]
-  meta: { q: string; limit: number; [key: string]: unknown }
-}
-
-export interface OperatorAutocompleteOptions {
-  /** Number of results to return (1-20, default 10) */
-  limit?: number
-}

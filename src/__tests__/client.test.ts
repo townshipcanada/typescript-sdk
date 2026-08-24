@@ -14,9 +14,7 @@ import type {
   BatchResponse,
   AutocompleteResponse,
   AgReport,
-  ReportBatchResponse,
   EnergyReport,
-  EnergyOperatorsResponse,
 } from '../types.js'
 
 // ── Test Fixtures ────────────────────────────────────────────────────
@@ -227,20 +225,6 @@ const ENERGY_REPORT: EnergyReport = {
   alternative_energy: null,
   units: { length: 'm', area: 'ha', depth: 'm', pressure: 'kPa', oil: 'm3', gas: 'e3m3' },
   meta: { unavailable: [], sources: {} },
-}
-
-const OPERATORS_RESPONSE: EnergyOperatorsResponse = {
-  rows: [
-    {
-      name: 'EXAMPLE ENERGY LTD',
-      ba_code: '0AB1',
-      slug: 'example-energy-ltd',
-      active_wells: 1250,
-      abandoned_wells: 320,
-      orphan_wells: 0,
-    },
-  ],
-  meta: { q: 'example', limit: 10 },
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -611,113 +595,6 @@ describe('TownshipClient', () => {
     })
   })
 
-  describe('agBatch', () => {
-    it('sends POST request and returns the {results, meta} envelope', async () => {
-      const batchResponse: ReportBatchResponse<AgReport> = {
-        results: [
-          { legal_location: 'NW-36-42-3-W5', status: 'ok', error: null, data: AG_REPORT },
-          {
-            legal_location: 'not a location',
-            status: 'error',
-            error: { code: 'invalid_legal_location', message: 'Not a quarter section or LSD.' },
-            data: null,
-          },
-          { legal_location: 'NW-1-1-1-W4', status: 'not_found', error: null, data: null },
-        ],
-        meta: { total: 3, ok: 1, not_found: 1, error: 1 },
-      }
-      const fetchFn = mockFetch(batchResponse)
-      const client = createClient(fetchFn)
-
-      const { results, meta } = await client.agBatch([
-        'NW-36-42-3-W5',
-        'not a location',
-        'NW-1-1-1-W4',
-      ])
-
-      expect(fetchFn).toHaveBeenCalledWith(
-        expect.stringContaining('/ag/batch'),
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify(['NW-36-42-3-W5', 'not a location', 'NW-1-1-1-W4']),
-        }),
-      )
-
-      expect(results).toHaveLength(3)
-      expect(results[0].status).toBe('ok')
-      expect(results[0].error).toBeNull()
-      expect(results[0].data?.parcel.area_ha).toBe(64.75)
-      expect(results[1].status).toBe('error')
-      expect(results[1].error?.code).toBe('invalid_legal_location')
-      expect(results[2].status).toBe('not_found')
-      expect(results[2].data).toBeNull()
-      expect(meta).toEqual({ total: 3, ok: 1, not_found: 1, error: 1 })
-    })
-
-    it('chunks batches larger than 25 and sums meta counters', async () => {
-      const fetchFn = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
-        const body = JSON.parse(init.body as string) as string[]
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          statusText: 'OK',
-          json: () =>
-            Promise.resolve({
-              results: body.map((legal_location) => ({
-                legal_location,
-                status: 'not_found',
-                error: null,
-                data: null,
-              })),
-              meta: { total: body.length, ok: 0, not_found: body.length, error: 0 },
-            }),
-        })
-      })
-      const client = createClient(fetchFn)
-
-      const locations = Array.from({ length: 60 }, (_, i) => `NW-${i}-42-3-W5`)
-      const { results, meta } = await client.agBatch(locations)
-
-      // 60 items with chunk size 25 -> 3 requests (25 + 25 + 10)
-      expect(fetchFn).toHaveBeenCalledTimes(3)
-      const firstBody = JSON.parse(fetchFn.mock.calls[0][1].body as string)
-      expect(firstBody).toHaveLength(25)
-      expect(results).toHaveLength(60)
-      expect(meta).toEqual({ total: 60, ok: 0, not_found: 60, error: 0 })
-    })
-  })
-
-  describe('agAutocomplete', () => {
-    it('sends q and parses suggestions', async () => {
-      const fetchFn = mockFetch(AUTOCOMPLETE_RESPONSE)
-      const client = createClient(fetchFn)
-
-      const suggestions = await client.agAutocomplete('NW-25-24')
-
-      expect(fetchFn).toHaveBeenCalledWith(
-        expect.stringContaining('/ag/autocomplete?q=NW-25-24'),
-        expect.anything(),
-      )
-
-      expect(suggestions).toHaveLength(1)
-      expect(suggestions[0].legalLocation).toBe('NW-25-24-1-W5')
-      expect(suggestions[0].unit).toBe('Quarter Section')
-    })
-
-    it('passes limit and proximity as lat/lng', async () => {
-      const fetchFn = mockFetch(AUTOCOMPLETE_RESPONSE)
-      const client = createClient(fetchFn)
-
-      await client.agAutocomplete('NW-25', { limit: 5, proximity: [-114.0, 51.0] })
-
-      const url = fetchFn.mock.calls[0][0] as string
-      expect(url).toContain('limit=5')
-      expect(url).toContain('lat=51')
-      expect(url).toContain('lng=-114')
-      expect(url).not.toContain('proximity')
-    })
-  })
-
   describe('energyReport', () => {
     it('sends correct request and returns the report', async () => {
       const fetchFn = mockFetch(ENERGY_REPORT)
@@ -762,117 +639,6 @@ describe('TownshipClient', () => {
         mockFetch({ error: { code: 'not_found', message: 'No energy data' } }, 404),
       )
       await expect(client.energyReport('1-1-1-1-W4')).rejects.toThrow(NotFoundError)
-    })
-  })
-
-  describe('energyBatch', () => {
-    it('sends POST request and returns the {results, meta} envelope', async () => {
-      const batchResponse: ReportBatchResponse<EnergyReport> = {
-        results: [
-          { legal_location: '10-36-42-3-W5', status: 'ok', error: null, data: ENERGY_REPORT },
-          { legal_location: '1-1-1-1-W4', status: 'not_found', error: null, data: null },
-        ],
-        meta: { total: 2, ok: 1, not_found: 1, error: 0 },
-      }
-      const fetchFn = mockFetch(batchResponse)
-      const client = createClient(fetchFn)
-
-      const { results, meta } = await client.energyBatch(['10-36-42-3-W5', '1-1-1-1-W4'])
-
-      expect(fetchFn).toHaveBeenCalledWith(
-        expect.stringContaining('/energy/batch'),
-        expect.objectContaining({
-          method: 'POST',
-          body: JSON.stringify(['10-36-42-3-W5', '1-1-1-1-W4']),
-        }),
-      )
-
-      expect(results).toHaveLength(2)
-      expect(results[0].status).toBe('ok')
-      expect(results[0].data?.summary?.wells.total).toBe(4)
-      expect(results[1].status).toBe('not_found')
-      expect(meta).toEqual({ total: 2, ok: 1, not_found: 1, error: 0 })
-    })
-
-    it('chunks batches larger than 25', async () => {
-      const fetchFn = mockFetch({
-        results: [],
-        meta: { total: 0, ok: 0, not_found: 0, error: 0 },
-      })
-      const client = createClient(fetchFn)
-
-      const locations = Array.from({ length: 30 }, (_, i) => `10-${i}-42-3-W5`)
-      await client.energyBatch(locations)
-
-      expect(fetchFn).toHaveBeenCalledTimes(2) // 25 + 5
-    })
-  })
-
-  describe('energyAutocomplete', () => {
-    it('sends q and parses suggestions', async () => {
-      const fetchFn = mockFetch(AUTOCOMPLETE_RESPONSE)
-      const client = createClient(fetchFn)
-
-      const suggestions = await client.energyAutocomplete('10-36-42')
-
-      expect(fetchFn).toHaveBeenCalledWith(
-        expect.stringContaining('/energy/autocomplete?q=10-36-42'),
-        expect.anything(),
-      )
-      expect(suggestions).toHaveLength(1)
-    })
-
-    it('passes limit and proximity as lat/lng', async () => {
-      const fetchFn = mockFetch(AUTOCOMPLETE_RESPONSE)
-      const client = createClient(fetchFn)
-
-      await client.energyAutocomplete('10-36', { limit: 5, proximity: [-113.7, 52.5] })
-
-      const url = fetchFn.mock.calls[0][0] as string
-      expect(url).toContain('limit=5')
-      expect(url).toContain('lat=52.5')
-      expect(url).toContain('lng=-113.7')
-      expect(url).not.toContain('proximity')
-    })
-  })
-
-  describe('energyOperatorAutocomplete', () => {
-    it('sends correct request and returns the rows', async () => {
-      const fetchFn = mockFetch(OPERATORS_RESPONSE)
-      const client = createClient(fetchFn)
-
-      const operators = await client.energyOperatorAutocomplete('example')
-
-      expect(fetchFn).toHaveBeenCalledWith(
-        expect.stringContaining('/energy/operators/autocomplete?q=example'),
-        expect.anything(),
-      )
-
-      expect(operators).toHaveLength(1)
-      expect(operators[0].ba_code).toBe('0AB1')
-      expect(operators[0].name).toBe('EXAMPLE ENERGY LTD')
-      expect(operators[0].slug).toBe('example-energy-ltd')
-      expect(operators[0].active_wells).toBe(1250)
-    })
-
-    it('passes limit option', async () => {
-      const fetchFn = mockFetch(OPERATORS_RESPONSE)
-      const client = createClient(fetchFn)
-
-      await client.energyOperatorAutocomplete('example', { limit: 20 })
-
-      const url = fetchFn.mock.calls[0][0] as string
-      expect(url).toContain('limit=20')
-    })
-
-    it('encodes special characters in query', async () => {
-      const fetchFn = mockFetch(OPERATORS_RESPONSE)
-      const client = createClient(fetchFn)
-
-      await client.energyOperatorAutocomplete('smith & sons')
-
-      const url = fetchFn.mock.calls[0][0] as string
-      expect(url).toContain('q=smith+%26+sons')
     })
   })
 

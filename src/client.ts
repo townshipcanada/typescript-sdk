@@ -16,12 +16,7 @@ import type {
   AgReportOptions,
   AgReport,
   EnergyReportOptions,
-  EnergyReport,
-  ReportBatchItem,
-  ReportBatchResponse,
-  EnergyOperator,
-  EnergyOperatorsResponse,
-  OperatorAutocompleteOptions
+  EnergyReport
 } from "./types.js";
 import {
   TownshipError,
@@ -35,7 +30,6 @@ import {
 const DEFAULT_BASE_URL = "https://developer.townshipcanada.com";
 const DEFAULT_TIMEOUT = 30_000;
 const MAX_BATCH_SIZE = 100;
-const MAX_REPORT_BATCH_SIZE = 25;
 
 /**
  * Township Canada API client.
@@ -309,50 +303,6 @@ export class TownshipClient {
     return this.request<AgReport>(`/ag/report?${params.toString()}`);
   }
 
-  /**
-   * Get agriculture reports for multiple locations in batch.
-   * Automatically chunks large batches into requests of 25 (API max).
-   * Results are returned in input order with per-item status; `meta`
-   * counters are summed across chunks.
-   *
-   * @param locations - Array of quarter section or LSD legal locations
-   * @returns A `{results, meta}` envelope; each item is
-   *   `{ legal_location, status, error, data }` (`error` is null unless status is "error")
-   *
-   * @example
-   * ```ts
-   * const { results, meta } = await client.agBatch(['NW-36-42-3-W5', '10-2-24-28-W4'])
-   * console.log(meta.ok, meta.not_found, meta.error)
-   * for (const item of results) {
-   *   if (item.status === 'ok') console.log(item.data?.parcel.area_ha)
-   * }
-   * ```
-   */
-  async agBatch(locations: string[]): Promise<ReportBatchResponse<AgReport>> {
-    return this.reportBatch<AgReport>("/ag/batch", locations);
-  }
-
-  /**
-   * Get autocomplete suggestions for quarter sections with agriculture coverage.
-   * Every suggestion is guaranteed to return a report.
-   *
-   * @param query - Partial quarter section or LSD (e.g. "NW-36-42")
-   * @param options - Optional limit and proximity bias
-   * @returns Array of autocomplete suggestions
-   *
-   * @example
-   * ```ts
-   * const suggestions = await client.agAutocomplete('NW-36-42')
-   * console.log(suggestions[0].legalLocation) // "NW-36-42-3-W5"
-   * ```
-   */
-  async agAutocomplete(
-    query: string,
-    options?: AutocompleteOptions
-  ): Promise<AutocompleteSuggestion[]> {
-    return this.fetchAutocomplete("/ag/autocomplete", query, options, "q");
-  }
-
   // ── Energy API ───────────────────────────────────────────────────
 
   /**
@@ -382,116 +332,17 @@ export class TownshipClient {
     return this.request<EnergyReport>(`/energy/report?${params.toString()}`);
   }
 
-  /**
-   * Get energy reports for multiple LSDs in batch.
-   * Automatically chunks large batches into requests of 25 (API max).
-   * Results are returned in input order with per-item status; `meta`
-   * counters are summed across chunks.
-   *
-   * @param locations - Array of LSD legal locations
-   * @returns A `{results, meta}` envelope; each item is
-   *   `{ legal_location, status, error, data }` (`error` is null unless status is "error")
-   *
-   * @example
-   * ```ts
-   * const { results, meta } = await client.energyBatch(['10-36-42-3-W5', '4-12-50-24-W4'])
-   * console.log(meta.ok, meta.not_found, meta.error)
-   * for (const item of results) {
-   *   if (item.status === 'ok') console.log(item.data?.summary?.wells.total)
-   * }
-   * ```
-   */
-  async energyBatch(locations: string[]): Promise<ReportBatchResponse<EnergyReport>> {
-    return this.reportBatch<EnergyReport>("/energy/batch", locations);
-  }
-
-  /**
-   * Get autocomplete suggestions for LSDs with energy data.
-   * Every suggestion is guaranteed to return a report.
-   *
-   * @param query - Partial LSD (e.g. "10-36-42")
-   * @param options - Optional limit and proximity bias
-   * @returns Array of autocomplete suggestions
-   *
-   * @example
-   * ```ts
-   * const suggestions = await client.energyAutocomplete('10-36-42')
-   * console.log(suggestions[0].legalLocation) // "10-36-42-3-W5"
-   * ```
-   */
-  async energyAutocomplete(
-    query: string,
-    options?: AutocompleteOptions
-  ): Promise<AutocompleteSuggestion[]> {
-    return this.fetchAutocomplete("/energy/autocomplete", query, options, "q");
-  }
-
-  /**
-   * Search AER licensees by name or BA code for operator typeahead inputs.
-   *
-   * @param query - Case-insensitive substring of the licensee name or BA code (min 2 characters)
-   * @param options - Optional limit (1-20, default 10)
-   * @returns Array of matching operators
-   *
-   * @example
-   * ```ts
-   * const operators = await client.energyOperatorAutocomplete('cenovus')
-   * console.log(operators[0].name)         // "CENOVUS ENERGY INC."
-   * console.log(operators[0].slug)         // "cenovus-energy-inc"
-   * console.log(operators[0].active_wells) // 1250
-   * ```
-   */
-  async energyOperatorAutocomplete(
-    query: string,
-    options?: OperatorAutocompleteOptions
-  ): Promise<EnergyOperator[]> {
-    const params = new URLSearchParams({ q: query });
-    if (options?.limit != null) params.set("limit", String(options.limit));
-
-    const response = await this.request<EnergyOperatorsResponse>(
-      `/energy/operators/autocomplete?${params.toString()}`
-    );
-    return response.rows;
-  }
-
   // ── Internal Helpers ─────────────────────────────────────────────
-
-  private async reportBatch<R>(
-    path: string,
-    locations: string[]
-  ): Promise<ReportBatchResponse<R>> {
-    const results: ReportBatchItem<R>[] = [];
-    const meta = { total: 0, ok: 0, not_found: 0, error: 0 };
-    for (const batch of this.chunk(locations, MAX_REPORT_BATCH_SIZE)) {
-      const response = await this.request<ReportBatchResponse<R>>(path, {
-        method: "POST",
-        body: JSON.stringify(batch)
-      });
-      results.push(...response.results);
-      meta.total += response.meta.total;
-      meta.ok += response.meta.ok;
-      meta.not_found += response.meta.not_found;
-      meta.error += response.meta.error;
-    }
-    return { results, meta };
-  }
 
   private async fetchAutocomplete(
     path: string,
     query: string,
-    options?: AutocompleteOptions,
-    queryParam: "location" | "q" = "location"
+    options?: AutocompleteOptions
   ): Promise<AutocompleteSuggestion[]> {
-    const params = new URLSearchParams({ [queryParam]: query });
+    const params = new URLSearchParams({ location: query });
     if (options?.limit != null) params.set("limit", String(options.limit));
     if (options?.proximity) {
-      if (queryParam === "q") {
-        // Ag/Energy v1 autocomplete takes two explicit params
-        params.set("lat", String(options.proximity[1]));
-        params.set("lng", String(options.proximity[0]));
-      } else {
-        params.set("proximity", `${options.proximity[0]},${options.proximity[1]}`);
-      }
+      params.set("proximity", `${options.proximity[0]},${options.proximity[1]}`);
     }
 
     const response = await this.request<AutocompleteResponse>(`${path}?${params.toString()}`);
