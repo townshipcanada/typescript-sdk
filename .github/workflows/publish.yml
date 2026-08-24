@@ -41,12 +41,16 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v6
+      # No registry-url here on purpose: it writes an .npmrc containing
+      # _authToken=${NODE_AUTH_TOKEN}, and with no token set npm sends an empty
+      # credential and never falls back to OIDC (the registry masks that as a
+      # 404). Trusted publishing needs no .npmrc at all.
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
-          registry-url: "https://registry.npmjs.org"
       # Node 22 ships npm 10; OIDC publishing needs 11.5.1 or newer.
       - run: npm install -g npm@latest
+      - run: npm --version
       - run: npm install
       - run: npm run build
       - run: npm publish
