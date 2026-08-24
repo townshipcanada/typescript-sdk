@@ -51,10 +51,6 @@ jobs:
       # Node 22 ships npm 10; OIDC publishing needs 11.5.1 or newer.
       - run: npm install -g npm@latest
       - run: npm --version
-      - name: OIDC availability
-        run: |
-          echo "id-token request URL present: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}${ACTIONS_ID_TOKEN_REQUEST_URL:-NO}"
-          echo "id-token request token present: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+yes}${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-NO}"
       - run: npm install
       - run: npm run build
       - run: npm publish

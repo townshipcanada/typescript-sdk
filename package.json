@@ -54,7 +54,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/townshipcanada/typescript-sdk.git"
+    "url": "git+https://github.com/townshipcanada/typescript-sdk.git"
   },
   "homepage": "https://townshipcanada.com/api",
   "engines": {
