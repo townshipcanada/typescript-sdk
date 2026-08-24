@@ -33,14 +33,20 @@ jobs:
   publish:
     needs: validate
     runs-on: ubuntu-latest
+    # Publishing goes through npm trusted publishing (OIDC), so there is no
+    # token: npm mints short-lived credentials from this job's identity, which
+    # also sidesteps the account 2FA requirement that blocks CI tokens.
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
+      # Node 22 ships npm 10; OIDC publishing needs 11.5.1 or newer.
+      - run: npm install -g npm@latest
       - run: npm install
       - run: npm run build
       - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
