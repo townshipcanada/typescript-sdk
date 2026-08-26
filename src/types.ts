@@ -397,7 +397,16 @@ export interface AgParcelContext {
 
 export interface AgCrownLandRow {
   legal_location: string | null
-  lessee: string | null
+  /**
+   * SK's per-parcel identifiers for the quarter, pipe-joined
+   * (e.g. `Parcel 1-NE-32-17-20-2 | Parcel 2-NE-32-17-20-2`).
+   *
+   * Previously named `lessee`. That was always a misnomer: the province
+   * publishes no holder for Agricultural Crown Land, and the underlying
+   * column read `null` for every row until the upstream join was fixed, so
+   * the old key never carried a real value.
+   */
+  parcel_labels: string | null
   land_status: string | null
   land_use: string | null
   area_acres: number | null
