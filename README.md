@@ -305,7 +305,7 @@ The SDK wraps `GET /ag/report`. The Ag API also serves the eight per-section rou
 
 ## Energy API (Energy Reports)
 
-Per-parcel energy reports for Legal Subdivisions (LSDs): wells, pipelines, facilities, trailing-12-month production, Crown tenure, and alternative energy. Coverage: AB, SK, MB (wells + tenure only) — BC (NTS) locations throw `ValidationError` with code `bc_not_supported`.
+Per-parcel energy reports for Legal Subdivisions (LSDs): wells, pipelines, facilities, trailing-12-month production, Crown tenure, and alternative energy. Coverage: AB, SK, MB (wells and tenure only), and BC's Peace River Block, which BC surveys in DLS (meridian W6, e.g. `3-9-81-17-W6`). BC NTS locations throw `ValidationError` with code `bc_not_supported`.
 
 ### `client.energyReport(legalLocation, options?)`
 
