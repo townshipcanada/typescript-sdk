@@ -332,13 +332,23 @@ const slim = await client.energyReport("10-36-42-3-W5", {
 
 // Attach the LSD boundary as GeoJSON under parcel.geometry
 const withGeometry = await client.energyReport("10-36-42-3-W5", { include: ["geometry"] });
+
+// Wells whose bottom hole is in the LSD. A UWI names the bottom hole, so use
+// this when you start from a UWI. Every row carries both holes.
+const byUwi = await client.energyReport("5-22-73-7-W4", { placement: "bottom_hole" });
+console.log(byUwi.summary?.wells.basis); // "bottom_hole"
+console.log(byUwi.wells?.rows[0]?.surface?.legal_location); // the wellhead LSD
+console.log(byUwi.summary?.wells.by_placement?.surface.total); // wells by wellhead, for comparison
 ```
+
+A horizontal well touches two LSDs: the surface hole (the wellhead, lease and access) and the bottom hole (where the bore ends). By default the report lists wells on their surface-hole LSD. `placement` switches the `wells` list and the `summary.wells` counts together, so `summary.wells.total` always equals `wells.total`; `summary.wells.basis` says which placement was used, and `summary.wells.by_placement` gives the counts on both holes.
 
 **Options:**
 
 | Option    | Type                    | Default       | Description                                                                                                                                                                    |
 | --------- | ----------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `include` | `EnergyReportSection[]` | (full report) | Section projection. Valid values: `summary`, `production`, `tenure`, `wells`, `pipelines`, `facilities`, `alternative_energy`, `geometry`. `geometry` attaches the boundary under `parcel.geometry`. |
+| `placement` | `EnergyWellPlacement` | `"surface"` | Which hole places a well on the LSD: `surface` (the wellhead), `bottom_hole` (where the bore ends; the location a UWI names), or `any` (either, each well once). Applies to `wells` and `summary.wells`. |
 
 **Returns:** `EnergyReport` — a `null` section means no data at that location or that one source degraded (`meta.unavailable` says which); the rest of the report is still trustworthy. Array sections (`tenure`, `wells`, `pipelines`, `facilities`) are `{ total, returned, truncated, more, rows }` envelopes.
 

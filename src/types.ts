@@ -226,6 +226,8 @@ export interface SectionSource {
 export interface ReportMeta {
   unavailable: UnavailableSection[]
   sources: Record<string, SectionSource>
+  /** Energy reports: the well placement the response used */
+  placement?: EnergyWellPlacement
   [key: string]: unknown
 }
 
@@ -477,6 +479,14 @@ export type EnergyReportSection =
   | 'alternative_energy'
   | 'geometry'
 
+/**
+ * Which hole places a well on an LSD. A horizontal well touches two LSDs:
+ * `surface` is the wellhead (the lease, access and equipment), `bottom_hole`
+ * is where the bore ends (the produced zone; a UWI names this location), and
+ * `any` is either, each well once.
+ */
+export type EnergyWellPlacement = 'surface' | 'bottom_hole' | 'any'
+
 /** Options for `energyReport`. */
 export interface EnergyReportOptions {
   /**
@@ -485,6 +495,12 @@ export interface EnergyReportOptions {
    * under `parcel.geometry`. Omitted returns the full report (no geometry).
    */
   include?: EnergyReportSection[]
+  /**
+   * Which hole places a well on the LSD, for the `wells` list and the
+   * `summary.wells` counts together. Defaults to `surface` on the server.
+   * Use `bottom_hole` when you start from a UWI.
+   */
+  placement?: EnergyWellPlacement
 }
 
 export interface EnergyParcel {
@@ -509,6 +525,18 @@ export interface EnergySummaryWells extends EnergyWellCounts {
   orphan: number
   reclamation_certified: number
   primary_source: 'regulator' | 'petrinex' | (string & {})
+  /**
+   * What the headline counts are: the regulator's wells on the requested
+   * placement (`surface_hole`, `bottom_hole`, `surface_or_bottom_hole`), or
+   * `petrinex_uwi` when the regulator lists no well touching the LSD.
+   */
+  basis?: 'surface_hole' | 'bottom_hole' | 'surface_or_bottom_hole' | 'petrinex_uwi' | (string & {})
+  /** Counts on both holes, whatever placement was asked. MB ships `bottom_hole: null`. */
+  by_placement?: {
+    surface: EnergyWellCounts
+    bottom_hole: EnergyWellCounts | null
+    [key: string]: unknown
+  }
   by_source: {
     regulator?: EnergyWellCounts
     petrinex?: EnergyWellCounts & { oil?: number; gas?: number; water?: number }
@@ -603,6 +631,25 @@ export interface EnergyWellRow {
   is_orphan: boolean | null
   is_abandoned: boolean | null
   is_suspended: boolean | null
+  /** True for Alberta `RecCertified` wells only (status is abandoned or orphan) */
+  is_reclamation_certified?: boolean | null
+  /** The surface hole */
+  location: LatLng | null
+  /** Which hole placed the well on the LSD you asked for */
+  placement?: 'surface' | 'bottom_hole' | 'both' | null
+  surface?: EnergyWellHole | null
+  /** Null where the regulator publishes no bottom hole (every MB well) */
+  bottom_hole?: (EnergyWellHole & { derived?: boolean }) | null
+  [key: string]: unknown
+}
+
+/**
+ * One hole of a well. On a `bottom_hole`, `derived: true` means AER published
+ * no bottom-hole survey yet, so the LSD comes from the UWI and `location` is a
+ * point inside it, not a surveyed position.
+ */
+export interface EnergyWellHole {
+  legal_location: string | null
   location: LatLng | null
   [key: string]: unknown
 }
