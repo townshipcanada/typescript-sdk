@@ -324,11 +324,16 @@ export class TownshipClient {
    * const slim = await client.energyReport('10-36-42-3-W5', {
    *   include: ['summary', 'production']
    * })
+   *
+   * // Wells whose bottom hole is in the LSD (the location a UWI names)
+   * const byUwi = await client.energyReport('5-22-73-7-W4', { placement: 'bottom_hole' })
+   * console.log(byUwi.summary?.wells.basis)                     // "bottom_hole"
    * ```
    */
   async energyReport(legalLocation: string, options?: EnergyReportOptions): Promise<EnergyReport> {
     const params = new URLSearchParams({ legal_location: legalLocation });
     if (options?.include?.length) params.set("include", options.include.join(","));
+    if (options?.placement) params.set("placement", options.placement);
     return this.request<EnergyReport>(`/energy/report?${params.toString()}`);
   }
 

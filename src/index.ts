@@ -70,6 +70,8 @@ export type {
   AgProvincialDetail,
   EnergyReportSection,
   EnergyReportOptions,
+  EnergyWellPlacement,
+  EnergyWellHole,
   EnergyReport,
   EnergyParcel,
   EnergySummary,

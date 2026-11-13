@@ -640,6 +640,73 @@ describe('TownshipClient', () => {
       )
       await expect(client.energyReport('1-1-1-1-W4')).rejects.toThrow(NotFoundError)
     })
+    it('omits placement unless asked', async () => {
+      const fetchFn = mockFetch(ENERGY_REPORT)
+      const client = createClient(fetchFn)
+
+      await client.energyReport('10-36-42-3-W5')
+
+      const url = fetchFn.mock.calls[0][0] as string
+      expect(url).not.toContain('placement=')
+    })
+
+    it('passes placement and reads the bottom-hole response fields', async () => {
+      const bottomHoleReport: EnergyReport = {
+        ...ENERGY_REPORT,
+        legal_location: '5-22-73-7-W4',
+        summary: {
+          ...ENERGY_REPORT.summary!,
+          wells: {
+            ...ENERGY_REPORT.summary!.wells,
+            total: 1,
+            active: 1,
+            suspended: 0,
+            abandoned: 0,
+            basis: 'bottom_hole',
+            by_placement: {
+              surface: { total: 0, active: 0, suspended: 0, abandoned: 0, orphan: 0, reclamation_certified: 0 },
+              bottom_hole: { total: 1, active: 1, suspended: 0, abandoned: 0, orphan: 0, reclamation_certified: 0 },
+            },
+          },
+        },
+        wells: {
+          total: 1,
+          returned: 1,
+          truncated: false,
+          more: '/energy/wells?legal_location=5-22-73-7-W4&placement=bottom_hole',
+          rows: [
+            {
+              ...ENERGY_REPORT.wells!.rows[0]!,
+              id: '12/05-22-073-07W4/0',
+              uwi: '12/05-22-073-07W4/0',
+              is_reclamation_certified: false,
+              placement: 'bottom_hole',
+              surface: { legal_location: '11-21-73-7-W4', location: { lat: 55.3386, lng: -111.0197 } },
+              bottom_hole: { legal_location: '5-22-73-7-W4', location: { lat: 55.3355, lng: -111.0032 }, derived: true },
+            },
+          ],
+        },
+        meta: { unavailable: [], sources: {}, placement: 'bottom_hole' },
+      }
+      const fetchFn = mockFetch(bottomHoleReport)
+      const client = createClient(fetchFn)
+
+      const report = await client.energyReport('5-22-73-7-W4', {
+        include: ['summary', 'wells'],
+        placement: 'bottom_hole',
+      })
+
+      const url = fetchFn.mock.calls[0][0] as string
+      expect(url).toContain('placement=bottom_hole')
+      expect(url).toContain('include=summary%2Cwells')
+      expect(report.summary?.wells.basis).toBe('bottom_hole')
+      expect(report.summary?.wells.by_placement?.surface.total).toBe(0)
+      expect(report.summary?.wells.by_placement?.bottom_hole?.total).toBe(1)
+      expect(report.wells?.rows[0]?.placement).toBe('bottom_hole')
+      expect(report.wells?.rows[0]?.surface?.legal_location).toBe('11-21-73-7-W4')
+      expect(report.wells?.rows[0]?.bottom_hole?.derived).toBe(true)
+      expect(report.meta?.placement).toBe('bottom_hole')
+    })
   })
 
   describe('error handling', () => {
