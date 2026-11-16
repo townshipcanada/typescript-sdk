@@ -101,7 +101,15 @@ export type LocationFeature = GridFeature | CentroidFeature
 
 export type SearchResponse = GeoJSONFeatureCollection<LocationFeature>
 
-export type BatchResponse = GeoJSONFeatureCollection<LocationFeature>
+/**
+ * Raw body of `POST /batch/legal-location` and `POST /batch/coordinates`: an
+ * array with one FeatureCollection (grid + centroid) per matched record.
+ * Unmatched records are left out. `POST /batch/coordinates` with `unit: "all"`
+ * returns a single FeatureCollection holding every feature instead.
+ */
+export type BatchResponse =
+  | GeoJSONFeatureCollection<LocationFeature>[]
+  | GeoJSONFeatureCollection<LocationFeature>
 
 export type AutocompleteResponse = GeoJSONFeatureCollection<AutocompleteFeature>
 
