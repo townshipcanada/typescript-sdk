@@ -5,7 +5,7 @@
 
 Official TypeScript SDK for the [Township Canada API](https://townshipcanada.com/api) — convert Canadian legal land descriptions (DLS, NTS, Geographic Townships) to GPS coordinates and back.
 
-[Documentation](https://townshipcanada.com/api) · [GitHub](https://github.com/townshipcanada/typescript-sdk) · [npm](https://www.npmjs.com/package/townshipcanada)
+[Documentation](https://townshipcanada.com/api) · [API plans](https://townshipcanada.com/pricing?ref=typescript-sdk#api-plans) · [GitHub](https://github.com/townshipcanada/typescript-sdk) · [npm](https://www.npmjs.com/package/townshipcanada)
 
 ## Install
 
@@ -35,8 +35,8 @@ console.log(result.province); // "Alberta"
 
 ## API Key Setup
 
-1. Sign up at [townshipcanada.com/api](https://townshipcanada.com/api)
-2. Create an API key from your dashboard
+1. Choose a plan for the API you need on the [API plans page](https://townshipcanada.com/pricing?ref=typescript-sdk#api-plans). Each API is its own subscription with its own key.
+2. Copy the key from your [developer portal](https://townshipcanada.com/app/api)
 3. Pass it to the client constructor
 
 ```typescript
