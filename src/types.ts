@@ -485,6 +485,7 @@ export type EnergyReportSection =
   | 'pipelines'
   | 'facilities'
   | 'alternative_energy'
+  | 'formation_tops'
   | 'geometry'
 
 /**
@@ -500,7 +501,9 @@ export interface EnergyReportOptions {
   /**
    * Return only these sections (the omitted sections are never queried).
    * `geometry` is a section name: include it to attach the LSD boundary
-   * under `parcel.geometry`. Omitted returns the full report (no geometry).
+   * under `parcel.geometry`. `formation_tops` (Alberta) is opt-in: only a
+   * request that names it gets the formation column at the LSD. Omitted
+   * returns the full report (no geometry, no formation tops).
    */
   include?: EnergyReportSection[]
   /**
@@ -648,7 +651,53 @@ export interface EnergyWellRow {
   surface?: EnergyWellHole | null
   /** Null where the regulator publishes no bottom hole (every MB well) */
   bottom_hole?: (EnergyWellHole & { derived?: boolean }) | null
+  /**
+   * Alberta: the Petrinex producing pool and the Geological Framework of
+   * Alberta v3 units that hold it. Null when there is no pool, the pool names
+   * no zone (commingled, temporary, numbered pools), and on SK, BC and MB rows.
+   */
+  producing_formation?: EnergyProducingFormation | null
   [key: string]: unknown
+}
+
+/** A GFA v3 geological unit, by code and name. */
+export interface GeologicalUnit {
+  /** GFA v3 unit code, e.g. `28_K_Ca` */
+  code: string
+  name: string
+  [key: string]: unknown
+}
+
+/** The zone a well produces from. */
+export interface EnergyProducingFormation {
+  /** Petrinex pool or deposit name as published, e.g. `CARDIUM A` */
+  pool: string
+  /** Units holding the zone, youngest first */
+  units: GeologicalUnit[]
+  [key: string]: unknown
+}
+
+/** One unit of the formation column at a point. */
+export interface EnergyFormationTop extends GeologicalUnit {
+  /** The model's era code: `Q`, `Pg`, `KPg`, `K`, `KJ`, `T`, `JPCf`, `MD`, `D`, `Pz`, `PreC` */
+  era: string
+  /** Unit top, metres above sea level */
+  top_elevation_m: number
+  /** Whole metres below `ground_elevation_m` (the model's land surface, not a surveyed ground or KB) */
+  depth_m: number
+}
+
+/**
+ * The formation column at the LSD centroid, top down (Alberta, `include=formation_tops`).
+ * From the Alberta Geological Survey's Geological Framework of Alberta v3, a
+ * 500 m grid model: context, not well logs or an interpretation.
+ */
+export interface EnergyFormationTops extends SectionEnvelope<EnergyFormationTop> {
+  /** The point sampled: the LSD centroid */
+  location: LatLng
+  /** The model's land surface there; null when the model does not cover the point */
+  ground_elevation_m: number | null
+  depth_reference: 'model_ground_surface' | (string & {})
 }
 
 /**
@@ -741,6 +790,12 @@ export interface EnergyReport {
   pipelines?: SectionEnvelope<EnergyPipelineRow>
   facilities?: SectionEnvelope<EnergyFacilityRow>
   alternative_energy?: EnergyAlternativeEnergy | null
+  /**
+   * Only with `include: ['formation_tops']`. Null outside Alberta
+   * (`meta.unavailable` reason `not_published_in_province`) or when the model
+   * cannot be read (`source_error`, `timeout`).
+   */
+  formation_tops?: EnergyFormationTops | null
   units?: EnergyUnits
   meta?: ReportMeta
   [key: string]: unknown

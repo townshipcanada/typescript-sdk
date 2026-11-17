@@ -687,6 +687,42 @@ describe('TownshipClient', () => {
       )
       await expect(client.energyReport('1-1-1-1-W4')).rejects.toThrow(NotFoundError)
     })
+    it('requests formation_tops and reads the Alberta subsurface fields', async () => {
+      const fetchFn = mockFetch({
+        legal_location: '10-36-42-3-W5',
+        province: 'AB',
+        wells: {
+          total: 1, returned: 1, truncated: false, more: null,
+          rows: [{
+            id: '00/16-09-056-17W5/0', uwi: '00/16-09-056-17W5/0',
+            producing_formation: {
+              pool: 'BELLY RIVER D',
+              units: [{ code: '15_K_undiff_BR', name: 'Belly River' }],
+            },
+          }],
+        },
+        formation_tops: {
+          location: { lat: 52.6215, lng: -114.3372 },
+          ground_elevation_m: 949,
+          depth_reference: 'model_ground_surface',
+          total: 2, returned: 2, truncated: false, more: null,
+          rows: [
+            { code: '01_QNgPg_sediment', name: 'Surficial sediment', era: 'Q', top_elevation_m: 949, depth_m: 0 },
+            { code: '28_K_Ca', name: 'Cardium', era: 'K', top_elevation_m: -559, depth_m: 1508 },
+          ],
+        },
+      })
+      const client = createClient(fetchFn)
+
+      const report = await client.energyReport('10-36-42-3-W5', { include: ['wells', 'formation_tops'] })
+
+      const url = fetchFn.mock.calls[0][0] as string
+      expect(url).toContain('include=wells%2Cformation_tops')
+      expect(report.wells?.rows[0]?.producing_formation?.pool).toBe('BELLY RIVER D')
+      expect(report.wells?.rows[0]?.producing_formation?.units[0]?.name).toBe('Belly River')
+      expect(report.formation_tops?.ground_elevation_m).toBe(949)
+      expect(report.formation_tops?.rows[1]?.depth_m).toBe(1508)
+    })
     it('omits placement unless asked', async () => {
       const fetchFn = mockFetch(ENERGY_REPORT)
       const client = createClient(fetchFn)
