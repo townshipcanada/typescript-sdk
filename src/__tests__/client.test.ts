@@ -53,6 +53,24 @@ const SEARCH_RESPONSE: SearchResponse = {
   features: [CENTROID_FEATURE, GRID_FEATURE],
 }
 
+const SE_CENTROID_FEATURE = {
+  ...CENTROID_FEATURE,
+  geometry: { type: 'Point' as const, coordinates: [-111.32, 53.31] as [number, number] },
+  properties: { ...CENTROID_FEATURE.properties, legal_location: 'SE-1-50-10-W4', search_term: 'SE-1-50-10-W4' },
+}
+
+const SE_GRID_FEATURE = {
+  ...GRID_FEATURE,
+  properties: { ...GRID_FEATURE.properties, legal_location: 'SE-1-50-10-W4', search_term: 'SE-1-50-10-W4' },
+}
+
+// Both batch endpoints answer with a JSON array holding one FeatureCollection
+// (grid + centroid) per matched record (api services/batch/handler.js).
+const BATCH_RESPONSE: BatchResponse = [
+  SEARCH_RESPONSE,
+  { type: 'FeatureCollection', features: [SE_GRID_FEATURE, SE_CENTROID_FEATURE] },
+]
+
 const AUTOCOMPLETE_RESPONSE: AutocompleteResponse = {
   type: 'FeatureCollection',
   features: [
@@ -396,10 +414,7 @@ describe('TownshipClient', () => {
 
   describe('batchSearch', () => {
     it('sends POST request with locations', async () => {
-      const batchResponse: BatchResponse = {
-        type: 'FeatureCollection',
-        features: [CENTROID_FEATURE, GRID_FEATURE],
-      }
+      const batchResponse: BatchResponse = [SEARCH_RESPONSE]
       const fetchFn = mockFetch(batchResponse)
       const client = createClient(fetchFn)
 
@@ -420,11 +435,20 @@ describe('TownshipClient', () => {
       expect(result.results[0].legalLocation).toBe('NW-36-42-3-W5')
     })
 
+    it('parses one result per FeatureCollection in the response array', async () => {
+      const client = createClient(mockFetch(BATCH_RESPONSE))
+
+      const result = await client.batchSearch(['NW-36-42-3-W5', 'SE-1-50-10-W4'])
+
+      expect(result.total).toBe(2)
+      expect(result.success).toBe(2)
+      expect(result.failed).toBe(0)
+      expect(result.results.map((r) => r.legalLocation)).toEqual(['NW-36-42-3-W5', 'SE-1-50-10-W4'])
+      expect(result.results[1].latitude).toBe(53.31)
+    })
+
     it('chunks large batches', async () => {
-      const batchResponse: BatchResponse = {
-        type: 'FeatureCollection',
-        features: [CENTROID_FEATURE, GRID_FEATURE],
-      }
+      const batchResponse: BatchResponse = [SEARCH_RESPONSE]
       const fetchFn = mockFetch(batchResponse)
       const client = createClient(fetchFn)
 
@@ -437,10 +461,7 @@ describe('TownshipClient', () => {
     })
 
     it('respects custom chunkSize', async () => {
-      const batchResponse: BatchResponse = {
-        type: 'FeatureCollection',
-        features: [CENTROID_FEATURE, GRID_FEATURE],
-      }
+      const batchResponse: BatchResponse = [SEARCH_RESPONSE]
       const fetchFn = mockFetch(batchResponse)
       const client = createClient(fetchFn)
 
@@ -453,10 +474,7 @@ describe('TownshipClient', () => {
 
   describe('batchReverse', () => {
     it('sends POST request with coordinates', async () => {
-      const batchResponse: BatchResponse = {
-        type: 'FeatureCollection',
-        features: [CENTROID_FEATURE, GRID_FEATURE],
-      }
+      const batchResponse: BatchResponse = [SEARCH_RESPONSE]
       const fetchFn = mockFetch(batchResponse)
       const client = createClient(fetchFn)
 
@@ -475,11 +493,40 @@ describe('TownshipClient', () => {
       expect(result.success).toBe(1)
     })
 
-    it('passes surveySystem and unit options', async () => {
-      const batchResponse: BatchResponse = {
+    it('keeps two points in the same parcel as two results', async () => {
+      const client = createClient(mockFetch([SEARCH_RESPONSE, SEARCH_RESPONSE]))
+
+      const result = await client.batchReverse([
+        [-114.654, 52.123],
+        [-114.655, 52.124],
+      ])
+
+      expect(result.total).toBe(2)
+      expect(result.success).toBe(2)
+      expect(result.failed).toBe(0)
+    })
+
+    it('parses the single FeatureCollection that unit "all" returns', async () => {
+      const flat: BatchResponse = {
         type: 'FeatureCollection',
-        features: [CENTROID_FEATURE, GRID_FEATURE],
+        features: [GRID_FEATURE, CENTROID_FEATURE, SE_GRID_FEATURE, SE_CENTROID_FEATURE],
       }
+      const client = createClient(mockFetch(flat))
+
+      const result = await client.batchReverse(
+        [
+          [-114.654, 52.123],
+          [-111.32, 53.31],
+        ],
+        { unit: 'all' as never },
+      )
+
+      expect(result.success).toBe(2)
+      expect(result.results.map((r) => r.legalLocation)).toEqual(['NW-36-42-3-W5', 'SE-1-50-10-W4'])
+    })
+
+    it('passes surveySystem and unit options', async () => {
+      const batchResponse: BatchResponse = [SEARCH_RESPONSE]
       const fetchFn = mockFetch(batchResponse)
       const client = createClient(fetchFn)
 

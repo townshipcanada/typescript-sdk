@@ -165,8 +165,7 @@ export class TownshipClient {
         body: JSON.stringify(batch)
       });
 
-      const grouped = this.groupFeaturesByLocation(response.features);
-      for (const [, features] of grouped) {
+      for (const features of this.batchFeatureGroups(response)) {
         try {
           allResults.push(this.parseFeatures(features));
         } catch {
@@ -220,8 +219,7 @@ export class TownshipClient {
         body: JSON.stringify(body)
       });
 
-      const grouped = this.groupFeaturesByLocation(response.features);
-      for (const [, features] of grouped) {
+      for (const features of this.batchFeatureGroups(response)) {
         try {
           allResults.push(this.parseFeatures(features));
         } catch {
@@ -453,6 +451,19 @@ export class TownshipClient {
       boundary: grid ? (grid.geometry as GeoJSONPolygon | GeoJSONMultiPolygon) : null,
       raw: features
     };
+  }
+
+  /**
+   * Split a batch response into one feature list per matched record. The batch
+   * endpoints return an array of FeatureCollections, one per record;
+   * `unit: "all"` on /batch/coordinates returns a single FeatureCollection,
+   * which is grouped by legal_location.
+   */
+  private batchFeatureGroups(response: BatchResponse): LocationFeature[][] {
+    if (Array.isArray(response)) {
+      return response.map((collection) => collection.features);
+    }
+    return [...this.groupFeaturesByLocation(response.features).values()];
   }
 
   private groupFeaturesByLocation(features: LocationFeature[]): Map<string, LocationFeature[]> {
